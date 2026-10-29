@@ -4,9 +4,9 @@ Thank you for your interest in contributing! `@http-forge/core` is the runtime e
 
 ## Prerequisites
 
-- **Node.js 20.19.5** (required — Node 18.x breaks Vitest)
+- **Node.js 20+** (Node 24 recommended — Node 18.x breaks Vitest)
   ```bash
-  export PATH=/home/henry/.nvm/versions/node/v20.19.5/bin:$PATH
+  export PATH=/home/henry/.nvm/versions/node/v24.19.0/bin:$PATH
   ```
 
 ## Development workflow
@@ -15,7 +15,7 @@ Thank you for your interest in contributing! `@http-forge/core` is the runtime e
    ```bash
    git clone git@github.com:hsl1230/http-forge.core.git
    cd http-forge.core
-   npm install
+   npm install --legacy-peer-deps  # optional peer deps (AWS/Azure/GCP/Vault/1Password) may fail on some npm versions
    ```
 
 2. Make your changes in `src/`.
