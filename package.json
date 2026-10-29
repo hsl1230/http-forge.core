@@ -1,6 +1,6 @@
 {
   "name": "@http-forge/core",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "Headless Postman-compatible API testing engine for Node.js, CI/CD, OpenAPI workflows, and HTTP Forge automation",
   "main": "./dist/index.js",
   "module": "./dist/index.mjs",
@@ -58,8 +58,7 @@
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/hsl1230/http-forge.git",
-    "directory": "packages/core"
+    "url": "https://github.com/hsl1230/http-forge.core.git"
   },
   "engines": {
     "node": ">=20.0.0"
@@ -117,5 +116,9 @@
     "esbuild": "0.28.2",
     "lodash": "4.18.1",
     "lodash-es": "4.18.1"
+  },
+  "homepage": "https://github.com/hsl1230/http-forge.core",
+  "bugs": {
+    "url": "https://github.com/hsl1230/http-forge.core/issues"
   }
 }

@@ -1,4 +1,5 @@
 import type { IDisposable } from '../../types/platform';
+import * as socketioClient from 'socket.io-client';
 import type {
     ISocketIoClient,
     ISocketIoConnection,
@@ -226,17 +227,10 @@ class NodeSocketIoConnection implements ISocketIoConnection {
 }
 
 async function loadSocketIoModule(): Promise<SocketIoModule> {
-    // CommonJS (Node, Jest): a synchronous require keeps the dependency lazy
-    // (it is only evaluated when a Socket.IO request actually runs) while
-    // remaining interceptable by test mocks. ESM consumers fall back to a
-    // dynamic import.
-    if (typeof require === 'function') {
-        // eslint-disable-next-line @typescript-eslint/no-var-requires
-        const mod = require('socket.io-client');
-        return { io: (mod as any).io ?? (mod as any).default?.io };
-    }
-    const mod = await import('socket.io-client');
-    return { io: (mod as any).io ?? (mod as any).default?.io };
+    // socket.io-client is bundled into consumers (extension) so it must be a
+    // static import for esbuild to resolve and inline it. The module is
+    // loaded lazily by callers (only when a Socket.IO request runs).
+    return { io: (socketioClient as any).io ?? (socketioClient as any).default?.io };
 }
 
 interface SocketIoModule {

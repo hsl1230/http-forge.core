@@ -5,6 +5,12 @@ All notable changes to @http-forge/core will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## 1.0.1 - 2026-10-29
+
+### Fixed
+
+- `NodeSocketIoClient` now uses a static `import * as socketioClient` so `socket.io-client` is resolved/inlined by consumer bundlers (e.g. the VS Code extension) instead of a runtime `require`/dynamic `import` that failed to resolve in bundled consumers.
+
 ## 1.0.0 - 2026-10-29
 
 ### Added
@@ -24,6 +30,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 
 - **AGENTS_MD_VERSION bumped to 4** — the generated `.http-forge/AGENTS.md` template now includes the HTTP Forge Loop (Design → Discover → Generate → Edit → Run → Report → Fix), Test Generation Best Practices (7 test types with snippets/checklists), AI Test Generation guidance (infer vs. ask), and CLI command reference including `generate-ai-agent` / `generate-ai-config`. Existing v3 guides will be flagged stale and refreshed on next `refresh-agents-md --apply`.
+- **GraphQL introspection fix** — `fetchSchema` now always sends `Content-Type: application/json` and `Accept: application/json` (user-supplied headers no longer override them), resolving 415 errors on servers that reject non-JSON content types.
 
 ## 0.7.1 - 2026-10-27
 

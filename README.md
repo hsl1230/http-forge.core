@@ -1063,6 +1063,15 @@ my-api/
 
 Contributions are welcome! Please feel free to submit a Pull Request.
 
+## 🔓 Open Source
+
+`@http-forge/core` is **open source (MIT)**. You can audit the execution engine, Postman compatibility layer, and sensitive-data redaction yourself.
+
+- **Repository:** [github.com/hsl1230/http-forge.core](https://github.com/hsl1230/http-forge.core)
+- **License:** [MIT](LICENSE)
+- **Contributing:** See [CONTRIBUTING.md](CONTRIBUTING.md)
+- **Issues:** [github.com/hsl1230/http-forge.core/issues](https://github.com/hsl1230/http-forge.core/issues)
+
 ## 📄 License
 
 MIT © Henry Huang
