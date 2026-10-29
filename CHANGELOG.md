@@ -5,6 +5,20 @@ All notable changes to @http-forge/core will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## 1.0.0 - 2026-10-29
+
+### Added
+
+- **Initial public release** — `@http-forge/core` is now open source (MIT). Includes HTTP execution engine, Postman collection compatibility, WebSocket/Socket.IO headless execution, API discovery (6 frameworks), MCP server (60+ tools), AI features (architect, suggest, enhance, QA, drift), OpenAPI import/export, GraphQL introspection, cloud secret providers, and Test Suite orchestration.
+- **LICENSE** — MIT license file added.
+- **CONTRIBUTING.md** — development workflow and coding conventions.
+- **Issue templates** — bug report and feature request templates.
+
+### Changed
+
+- **AGENTS_MD_VERSION bumped to 4** — the generated `.http-forge/AGENTS.md` template now includes the HTTP Forge Loop, Test Generation Best Practices, AI Test Generation guidance, and CLI command reference.
+- **Node.js 24 support** — verified all tests and builds pass under Node 24 (latest LTS).
+
 ## 0.7.2 - 2026-10-28
 
 ### Changed
