@@ -1,0 +1,145 @@
+[
+  {
+    "method": "GET",
+    "framework": "fastify",
+    "pathExpression": "/health",
+    "resolvedPath": "/health",
+    "confidence": "high",
+    "source": {
+      "filePath": "src/app.ts",
+      "line": 10,
+      "column": 20,
+      "symbolName": "async () => {\n  return { status: 'ok' };\n}"
+    },
+    "middleware": [],
+    "responses": [
+      {
+        "statusCode": 200
+      }
+    ]
+  },
+  {
+    "method": "GET",
+    "framework": "fastify",
+    "pathExpression": "/users",
+    "resolvedPath": "/users",
+    "confidence": "high",
+    "source": {
+      "filePath": "src/app.ts",
+      "line": 14,
+      "column": 19,
+      "symbolName": "async () => {\n  return users;\n}"
+    },
+    "middleware": [],
+    "responses": [
+      {
+        "statusCode": 200
+      }
+    ]
+  },
+  {
+    "method": "GET",
+    "framework": "fastify",
+    "pathExpression": "/users/:id",
+    "resolvedPath": "/users/:id",
+    "confidence": "high",
+    "source": {
+      "filePath": "src/app.ts",
+      "line": 18,
+      "column": 23,
+      "symbolName": "async (req) => {\n  return users.find((u) => u.id === Number(req.params.id));\n}"
+    },
+    "middleware": [],
+    "params": [
+      {
+        "name": "id",
+        "location": "path",
+        "required": true,
+        "type": "string",
+        "detectionLocation": {
+          "filePath": "src/app.ts",
+          "line": 19,
+          "column": 44,
+          "accessMode": "read"
+        }
+      }
+    ],
+    "responses": [
+      {
+        "statusCode": 200
+      }
+    ]
+  },
+  {
+    "method": "POST",
+    "framework": "fastify",
+    "pathExpression": "/users",
+    "resolvedPath": "/users",
+    "confidence": "high",
+    "source": {
+      "filePath": "src/app.ts",
+      "line": 32,
+      "column": 4,
+      "symbolName": "async (req) => {\n  return { id: 3, ...req.body };\n}"
+    },
+    "middleware": [],
+    "params": [
+      {
+        "name": "name",
+        "location": "body",
+        "type": "string",
+        "required": true
+      }
+    ],
+    "requestBody": {
+      "type": "json",
+      "required": true,
+      "schema": {
+        "type": "object",
+        "required": [
+          "name"
+        ],
+        "properties": {
+          "name": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "responses": [
+      {
+        "statusCode": 200
+      }
+    ],
+    "validation": [
+      "required fields"
+    ]
+  },
+  {
+    "method": "DELETE",
+    "framework": "fastify",
+    "pathExpression": "/users/:id",
+    "resolvedPath": "/users/:id",
+    "confidence": "high",
+    "source": {
+      "filePath": "src/app.ts",
+      "line": 36,
+      "column": 26,
+      "symbolName": "async () => {\n  return { status: 'deleted' };\n}"
+    },
+    "middleware": [],
+    "params": [
+      {
+        "name": "id",
+        "location": "path",
+        "required": true,
+        "type": "string"
+      }
+    ],
+    "responses": [
+      {
+        "statusCode": 200
+      }
+    ]
+  }
+]

@@ -1,0 +1,82 @@
+[
+  {
+    "method": "GET",
+    "framework": "nestjs",
+    "pathExpression": "/users",
+    "resolvedPath": "/users",
+    "confidence": "high",
+    "source": {
+      "filePath": "src/users/users.controller.ts",
+      "line": 7,
+      "column": 3,
+      "symbolName": "findAll"
+    },
+    "middleware": []
+  },
+  {
+    "method": "GET",
+    "framework": "nestjs",
+    "pathExpression": "/users/:id",
+    "resolvedPath": "/users/:id",
+    "confidence": "high",
+    "source": {
+      "filePath": "src/users/users.controller.ts",
+      "line": 12,
+      "column": 3,
+      "symbolName": "findOne"
+    },
+    "middleware": [],
+    "params": [
+      {
+        "name": "id",
+        "location": "path",
+        "required": true,
+        "type": "string"
+      }
+    ]
+  },
+  {
+    "method": "POST",
+    "framework": "nestjs",
+    "pathExpression": "/users",
+    "resolvedPath": "/users",
+    "confidence": "high",
+    "source": {
+      "filePath": "src/users/users.controller.ts",
+      "line": 17,
+      "column": 3,
+      "symbolName": "create"
+    },
+    "middleware": []
+  },
+  {
+    "method": "DELETE",
+    "framework": "nestjs",
+    "pathExpression": "/users/:id",
+    "resolvedPath": "/users/:id",
+    "confidence": "high",
+    "source": {
+      "filePath": "src/users/users.controller.ts",
+      "line": 23,
+      "column": 3,
+      "symbolName": "remove"
+    },
+    "middleware": [
+      {
+        "name": "UseGuards:AuthGuard"
+      }
+    ],
+    "params": [
+      {
+        "name": "id",
+        "location": "path",
+        "required": true,
+        "type": "string"
+      }
+    ],
+    "auth": {
+      "required": true,
+      "annotation": "UseGuards:AuthGuard"
+    }
+  }
+]

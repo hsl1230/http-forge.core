@@ -1,0 +1,154 @@
+[
+  {
+    "method": "GET",
+    "framework": "express",
+    "pathExpression": "/health",
+    "resolvedPath": "/health",
+    "confidence": "high",
+    "source": {
+      "filePath": "src/app.ts",
+      "line": 11,
+      "column": 20,
+      "symbolName": "(_req, res) => {\n  res.json({ status: 'ok' });\n}"
+    },
+    "middleware": [],
+    "responses": [
+      {
+        "statusCode": 200,
+        "headers": [],
+        "body": {
+          "type": "json"
+        }
+      }
+    ]
+  },
+  {
+    "method": "GET",
+    "framework": "express",
+    "pathExpression": "/users",
+    "resolvedPath": "/users",
+    "confidence": "high",
+    "source": {
+      "filePath": "src/app.ts",
+      "line": 15,
+      "column": 19,
+      "symbolName": "(_req, res) => {\n  res.json(users);\n}"
+    },
+    "middleware": [],
+    "responses": [
+      {
+        "statusCode": 200,
+        "headers": [],
+        "body": {
+          "type": "json"
+        }
+      }
+    ]
+  },
+  {
+    "method": "GET",
+    "framework": "express",
+    "pathExpression": "/users/:id",
+    "resolvedPath": "/users/:id",
+    "confidence": "high",
+    "source": {
+      "filePath": "src/app.ts",
+      "line": 19,
+      "column": 23,
+      "symbolName": "(req, res) => {\n  const user = users.find((u) => u.id === Number(req.params.id));\n  if (!user) {\n    res.status(404).json({ error: 'not found' });\n    return;\n  }\n  res.json(user);\n}"
+    },
+    "middleware": [],
+    "params": [
+      {
+        "name": "id",
+        "location": "path",
+        "required": true,
+        "type": "string",
+        "detectionLocation": {
+          "filePath": "src/app.ts",
+          "line": 20,
+          "column": 50,
+          "accessMode": "read"
+        }
+      }
+    ],
+    "responses": [
+      {
+        "statusCode": 200,
+        "headers": [],
+        "body": {
+          "type": "json"
+        }
+      },
+      {
+        "statusCode": 404,
+        "body": {
+          "type": "json"
+        }
+      }
+    ]
+  },
+  {
+    "method": "POST",
+    "framework": "express",
+    "pathExpression": "/users",
+    "resolvedPath": "/users",
+    "confidence": "high",
+    "source": {
+      "filePath": "src/app.ts",
+      "line": 28,
+      "column": 20,
+      "symbolName": "(req, res) => {\n  res.status(201).json({ id: 3, ...req.body });\n}"
+    },
+    "middleware": [],
+    "requestBody": {
+      "type": "json",
+      "required": true
+    },
+    "responses": [
+      {
+        "statusCode": 200,
+        "body": {
+          "type": "json"
+        }
+      },
+      {
+        "statusCode": 201,
+        "body": {
+          "type": "json"
+        }
+      }
+    ]
+  },
+  {
+    "method": "DELETE",
+    "framework": "express",
+    "pathExpression": "/users/:id",
+    "resolvedPath": "/users/:id",
+    "confidence": "high",
+    "source": {
+      "filePath": "src/app.ts",
+      "line": 32,
+      "column": 26,
+      "symbolName": "(req, res) => {\n  res.status(204).end();\n}"
+    },
+    "middleware": [],
+    "params": [
+      {
+        "name": "id",
+        "location": "path",
+        "required": true,
+        "type": "string"
+      }
+    ],
+    "responses": [
+      {
+        "statusCode": 200,
+        "headers": [],
+        "body": {
+          "type": "json"
+        }
+      }
+    ]
+  }
+]

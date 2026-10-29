@@ -1,0 +1,96 @@
+[
+  {
+    "method": "GET",
+    "framework": "lambda",
+    "pathExpression": "/health",
+    "resolvedPath": "/health",
+    "confidence": "high",
+    "source": {
+      "filePath": "src/handlers/health.ts",
+      "line": 1,
+      "column": 1,
+      "symbolName": "main"
+    },
+    "middleware": []
+  },
+  {
+    "method": "GET",
+    "framework": "lambda",
+    "pathExpression": "/users",
+    "resolvedPath": "/users",
+    "confidence": "high",
+    "source": {
+      "filePath": "src/handlers/users.ts",
+      "line": 1,
+      "column": 1,
+      "symbolName": "list"
+    },
+    "middleware": []
+  },
+  {
+    "method": "GET",
+    "framework": "lambda",
+    "pathExpression": "/users/{id}",
+    "resolvedPath": "/users/{id}",
+    "confidence": "high",
+    "source": {
+      "filePath": "src/handlers/users.ts",
+      "line": 1,
+      "column": 1,
+      "symbolName": "get"
+    },
+    "middleware": [
+      {
+        "name": "AuthAuthorizer"
+      }
+    ],
+    "params": [
+      {
+        "name": "id",
+        "location": "path",
+        "required": true,
+        "type": "string"
+      }
+    ],
+    "auth": {
+      "required": true,
+      "annotation": "AuthAuthorizer"
+    }
+  },
+  {
+    "method": "POST",
+    "framework": "lambda",
+    "pathExpression": "/users",
+    "resolvedPath": "/users",
+    "confidence": "high",
+    "source": {
+      "filePath": "src/handlers/users.ts",
+      "line": 1,
+      "column": 1,
+      "symbolName": "create"
+    },
+    "middleware": []
+  },
+  {
+    "method": "DELETE",
+    "framework": "lambda",
+    "pathExpression": "/users/{id}",
+    "resolvedPath": "/users/{id}",
+    "confidence": "high",
+    "source": {
+      "filePath": "src/handlers/users.ts",
+      "line": 1,
+      "column": 1,
+      "symbolName": "remove"
+    },
+    "middleware": [],
+    "params": [
+      {
+        "name": "id",
+        "location": "path",
+        "required": true,
+        "type": "string"
+      }
+    ]
+  }
+]

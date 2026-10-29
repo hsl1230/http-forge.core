@@ -1,0 +1,404 @@
+[
+  {
+    "framework": "spring",
+    "method": "GET",
+    "pathExpression": "/api/files/meta",
+    "resolvedPath": "/api/files/meta",
+    "confidence": "high",
+    "source": {
+      "filePath": "src/main/java/com/example/demo/FileController.java",
+      "line": 30,
+      "symbolName": "GET /api/files/meta"
+    },
+    "params": [
+      {
+        "name": "X-Request-Id",
+        "location": "header",
+        "required": true,
+        "type": "string",
+        "schema": {
+          "type": "string"
+        }
+      },
+      {
+        "name": "verbose",
+        "location": "query",
+        "required": false,
+        "type": "boolean",
+        "schema": {
+          "type": "boolean"
+        }
+      }
+    ],
+    "responses": [
+      {
+        "statusCode": 200,
+        "body": {
+          "type": "json",
+          "schema": {
+            "type": "string"
+          }
+        }
+      }
+    ]
+  },
+  {
+    "framework": "spring",
+    "method": "GET",
+    "pathExpression": "/api/users",
+    "resolvedPath": "/api/users",
+    "confidence": "high",
+    "source": {
+      "filePath": "src/main/java/com/example/demo/UserController.java",
+      "line": 22,
+      "symbolName": "GET /api/users"
+    },
+    "params": [
+      {
+        "name": "role",
+        "location": "query",
+        "required": false,
+        "type": "string",
+        "schema": {
+          "type": "string",
+          "pattern": "[a-z]+",
+          "minLength": 2,
+          "maxLength": 32
+        }
+      }
+    ],
+    "responses": [
+      {
+        "statusCode": 200,
+        "body": {
+          "type": "json",
+          "schema": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "integer",
+                  "format": "int64"
+                },
+                "name": {
+                  "type": "string"
+                },
+                "email": {
+                  "type": "string"
+                }
+              }
+            }
+          }
+        }
+      }
+    ],
+    "validation": [
+      "query role: pattern=[a-z]+, minLength=2, maxLength=32"
+    ]
+  },
+  {
+    "framework": "spring",
+    "method": "GET",
+    "pathExpression": "/api/users/{id}",
+    "resolvedPath": "/api/users/{id}",
+    "confidence": "high",
+    "source": {
+      "filePath": "src/main/java/com/example/demo/UserController.java",
+      "line": 31,
+      "symbolName": "GET /api/users/{id}"
+    },
+    "params": [
+      {
+        "name": "id",
+        "location": "path",
+        "required": true,
+        "type": "string"
+      }
+    ],
+    "responses": [
+      {
+        "statusCode": 200,
+        "body": {
+          "type": "json",
+          "schema": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "integer",
+                "format": "int64"
+              },
+              "name": {
+                "type": "string"
+              },
+              "email": {
+                "type": "string"
+              }
+            }
+          }
+        }
+      }
+    ]
+  },
+  {
+    "framework": "spring",
+    "method": "GET",
+    "pathExpression": "/health",
+    "resolvedPath": "/health",
+    "confidence": "high",
+    "source": {
+      "filePath": "src/main/java/com/example/demo/HealthController.java",
+      "line": 10,
+      "symbolName": "GET /health"
+    },
+    "responses": [
+      {
+        "statusCode": 200,
+        "body": {
+          "type": "json",
+          "schema": {
+            "type": "string"
+          }
+        }
+      }
+    ]
+  },
+  {
+    "framework": "spring",
+    "method": "POST",
+    "pathExpression": "/api/files/form",
+    "resolvedPath": "/api/files/form",
+    "confidence": "high",
+    "source": {
+      "filePath": "src/main/java/com/example/demo/FileController.java",
+      "line": 24,
+      "symbolName": "POST /api/files/form"
+    },
+    "params": [
+      {
+        "name": "name",
+        "location": "form",
+        "type": "string",
+        "schema": {
+          "type": "string"
+        }
+      },
+      {
+        "name": "age",
+        "location": "form",
+        "required": false,
+        "type": "integer",
+        "schema": {
+          "type": "integer",
+          "format": "int32"
+        }
+      }
+    ],
+    "requestBody": {
+      "type": "form",
+      "required": true
+    },
+    "responses": [
+      {
+        "statusCode": 200,
+        "body": {
+          "type": "json",
+          "schema": {
+            "type": "string"
+          }
+        }
+      }
+    ]
+  },
+  {
+    "framework": "spring",
+    "method": "POST",
+    "pathExpression": "/api/files/upload",
+    "resolvedPath": "/api/files/upload",
+    "confidence": "high",
+    "source": {
+      "filePath": "src/main/java/com/example/demo/FileController.java",
+      "line": 17,
+      "symbolName": "POST /api/files/upload"
+    },
+    "params": [
+      {
+        "name": "description",
+        "location": "form",
+        "required": false,
+        "type": "string",
+        "schema": {
+          "type": "string"
+        }
+      },
+      {
+        "name": "file",
+        "location": "form",
+        "type": "file",
+        "required": true
+      }
+    ],
+    "requestBody": {
+      "type": "multipart",
+      "required": true
+    },
+    "responses": [
+      {
+        "statusCode": 200,
+        "body": {
+          "type": "json",
+          "schema": {
+            "type": "string"
+          }
+        }
+      }
+    ]
+  },
+  {
+    "framework": "spring",
+    "method": "POST",
+    "pathExpression": "/api/users",
+    "resolvedPath": "/api/users",
+    "confidence": "high",
+    "source": {
+      "filePath": "src/main/java/com/example/demo/UserController.java",
+      "line": 36,
+      "symbolName": "POST /api/users"
+    },
+    "requestBody": {
+      "type": "json",
+      "required": true,
+      "schema": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "name": {
+            "type": "string"
+          },
+          "email": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "responses": [
+      {
+        "statusCode": 200,
+        "body": {
+          "type": "json",
+          "schema": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "integer",
+                "format": "int64"
+              },
+              "name": {
+                "type": "string"
+              },
+              "email": {
+                "type": "string"
+              }
+            }
+          }
+        }
+      }
+    ],
+    "validation": [
+      "id: format=int64"
+    ]
+  },
+  {
+    "framework": "spring",
+    "method": "PUT",
+    "pathExpression": "/api/users/{id}",
+    "resolvedPath": "/api/users/{id}",
+    "confidence": "high",
+    "source": {
+      "filePath": "src/main/java/com/example/demo/UserController.java",
+      "line": 41,
+      "symbolName": "PUT /api/users/{id}"
+    },
+    "params": [
+      {
+        "name": "id",
+        "location": "path",
+        "required": true,
+        "type": "string"
+      }
+    ],
+    "requestBody": {
+      "type": "json",
+      "required": true,
+      "schema": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "name": {
+            "type": "string"
+          },
+          "email": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "responses": [
+      {
+        "statusCode": 200,
+        "body": {
+          "type": "json",
+          "schema": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "integer",
+                "format": "int64"
+              },
+              "name": {
+                "type": "string"
+              },
+              "email": {
+                "type": "string"
+              }
+            }
+          }
+        }
+      }
+    ],
+    "validation": [
+      "id: format=int64"
+    ]
+  },
+  {
+    "framework": "spring",
+    "method": "DELETE",
+    "pathExpression": "/api/users/{id}",
+    "resolvedPath": "/api/users/{id}",
+    "confidence": "high",
+    "source": {
+      "filePath": "src/main/java/com/example/demo/UserController.java",
+      "line": 46,
+      "symbolName": "DELETE /api/users/{id}"
+    },
+    "params": [
+      {
+        "name": "id",
+        "location": "path",
+        "required": true,
+        "type": "string"
+      }
+    ],
+    "responses": [
+      {
+        "statusCode": 200
+      }
+    ]
+  }
+]

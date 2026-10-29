@@ -1,0 +1,36 @@
+service: lambda-app-fixture
+provider:
+  name: aws
+  runtime: nodejs20.x
+functions:
+  health:
+    handler: src/handlers/health.main
+    events:
+      - http:
+          path: health
+          method: get
+  listUsers:
+    handler: src/handlers/users.list
+    events:
+      - http:
+          path: users
+          method: get
+  getUser:
+    handler: src/handlers/users.get
+    events:
+      - http:
+          path: users/{id}
+          method: get
+          authorizer: AuthAuthorizer
+  createUser:
+    handler: src/handlers/users.create
+    events:
+      - http:
+          path: users
+          method: post
+  deleteUser:
+    handler: src/handlers/users.remove
+    events:
+      - http:
+          path: users/{id}
+          method: delete

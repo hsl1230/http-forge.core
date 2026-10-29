@@ -1,0 +1,339 @@
+/**
+ * Markdown Summary Generator for Test Suite Run Results
+ *
+ * Generates run-summary.md alongside the HTML report in each run folder.
+ * Designed to be consumed by AI tools (Claude Code, GitHub Copilot, Cursor, etc.)
+ * to analyse failures from a business perspective.
+ *
+ * Output: {basePath}/{suiteId}/{runId}/run-summary.md
+ */
+
+import * as fsp from 'fs/promises';
+import * as path from 'path';
+import {
+    FullResultDetails,
+    HTTP_METHOD_REVERSE,
+    IndexPage,
+    ResultSummary,
+    RunManifest,
+    buildResultFileName,
+} from './result-storage';
+
+const MAX_BODY_CHARS = 2000;
+
+function fmtMs(ms: number): string {
+    return ms >= 1000 ? `${(ms / 1000).toFixed(2)}s` : `${ms}ms`;
+}
+
+function fmtDate(iso: string): string {
+    try { return new Date(iso).toLocaleString(); } catch { return iso; }
+}
+
+function truncate(text: string | null | undefined, max = MAX_BODY_CHARS): string {
+    if (!text) return '';
+    const s = typeof text === 'string' ? text : JSON.stringify(text, null, 2);
+    if (s.length <= max) return s;
+    return s.slice(0, max) + `\n… [${s.length - max} chars truncated]`;
+}
+
+function bodyText(body: unknown): string {
+    if (body === null || body === undefined || body === '') return '*(empty)*';
+    try {
+        const s = typeof body === 'string' ? body : JSON.stringify(body, null, 2);
+        return '```json\n' + truncate(s) + '\n```';
+    } catch {
+        return String(body).slice(0, MAX_BODY_CHARS);
+    }
+}
+
+export class MarkdownSummaryGenerator {
+    constructor(private readonly basePath: string, private readonly suitesPath?: string) {}
+
+    /**
+     * Generate run-summary.md for the given run.
+     * @returns absolute path to the written file
+     */
+    async generate(suiteId: string, runId: string): Promise<string> {
+        const runDir = path.join(this.basePath, suiteId, runId);
+
+        const manifest: RunManifest = JSON.parse(
+            await fsp.readFile(path.join(runDir, 'manifest.json'), 'utf-8')
+        );
+
+        const summaries = await this.loadAllSummaries(runDir, manifest.totalIndexPages);
+
+        // Load full details only for failed requests (response bodies + assertion messages)
+        const failedSummaries = summaries.filter(s => !s.p);
+        const failedDetails = await this.loadDetails(runDir, failedSummaries);
+
+        // Try to load suite definition (if suitesPath was provided)
+        let suiteDef: any = undefined;
+        if (this.suitesPath) {
+            try {
+                const suiteFile = path.join(this.suitesPath, `${suiteId}.suite.json`);
+                suiteDef = JSON.parse(await fsp.readFile(suiteFile, 'utf-8'));
+            } catch {
+                suiteDef = undefined;
+            }
+        }
+
+        const md = this.buildMarkdown(manifest, summaries, failedSummaries, failedDetails, suiteId, suiteDef);
+        const outputPath = path.join(runDir, 'run-summary.md');
+        await fsp.writeFile(outputPath, md, 'utf-8');
+        return outputPath;
+    }
+
+    private async loadAllSummaries(runDir: string, totalPages: number): Promise<ResultSummary[]> {
+        const all: ResultSummary[] = [];
+        for (let p = 1; p <= totalPages; p++) {
+            const pagePath = path.join(runDir, 'index', `page-${String(p).padStart(4, '0')}.json`);
+            try {
+                const page: IndexPage = JSON.parse(await fsp.readFile(pagePath, 'utf-8'));
+                all.push(...page.summaries);
+            } catch { /* skip missing pages */ }
+        }
+        return all;
+    }
+
+    private async loadDetails(
+        runDir: string,
+        summaries: ResultSummary[]
+    ): Promise<Map<string, FullResultDetails>> {
+        const map = new Map<string, FullResultDetails>();
+        for (const s of summaries) {
+            const fileName = buildResultFileName(s.i, s.it, s.r);
+            try {
+                const detail: FullResultDetails = JSON.parse(
+                    await fsp.readFile(path.join(runDir, 'results', fileName), 'utf-8')
+                );
+                map.set(`${s.i}-${s.it}`, detail);
+            } catch { /* skip missing */ }
+        }
+        return map;
+    }
+
+    private buildMarkdown(
+        manifest: RunManifest,
+        summaries: ResultSummary[],
+        failedSummaries: ResultSummary[],
+        failedDetails: Map<string, FullResultDetails>,
+        suiteId: string,
+        suiteDef?: any
+    ): string {
+        const total = summaries.length;
+        const passed = summaries.filter(s => s.p).length;
+        const failed = total - passed;
+        const totalDuration = summaries.reduce((a, s) => a + s.d, 0);
+        const passRate = total > 0 ? Math.round((passed / total) * 100) : 0;
+
+        const lines: string[] = [];
+
+        // ── Header ───────────────────────────────────────────────────────────
+        lines.push(`# HTTP Forge Run Summary`);
+        lines.push('');
+        lines.push(`> **Generated by HTTP Forge** — for AI tools (Claude Code, GitHub Copilot, Cursor, etc.)`);
+        lines.push('');
+        lines.push(`| Field | Value |`);
+        lines.push(`|---|---|`);
+        lines.push(`| **Suite** | ${manifest.suiteName} |`);
+        lines.push(`| **Run ID** | ${manifest.runId} |`);
+        lines.push(`| **Environment** | ${manifest.environment || '—'} |`);
+        lines.push(`| **Started** | ${fmtDate(manifest.startTime)} |`);
+        lines.push(`| **Status** | ${manifest.status} |`);
+        lines.push(`| **Duration** | ${fmtMs(totalDuration)} |`);
+        lines.push('');
+
+                
+
+        // ── Results overview ─────────────────────────────────────────────────
+        lines.push(`## Results Overview`);
+        lines.push('');
+        lines.push(`| Metric | Value |`);
+        lines.push(`|---|---|`);
+        lines.push(`| Total Requests | ${total} |`);
+        lines.push(`| ✅ Passed | ${passed} |`);
+        lines.push(`| ❌ Failed | ${failed} |`);
+        lines.push(`| Pass Rate | ${passRate}% |`);
+        lines.push('');
+
+        // ── Failed requests (detailed) ────────────────────────────────────────
+        if (failed > 0) {
+            lines.push(`## ❌ Failed Requests`);
+            lines.push('');
+            lines.push('> These are the requests that need investigation.');
+            lines.push('> Full request/response details are in the `results/` folder alongside this file.');
+            lines.push('');
+
+            failedSummaries.forEach((s, idx) => {
+                const method = HTTP_METHOD_REVERSE[s.m] ?? String(s.m);
+                const detail = failedDetails.get(`${s.i}-${s.it}`);
+                const url = detail?.url ?? '';
+                const collectionName = s.cn || detail?.collectionName || '';
+                const folderPath = s.fp || detail?.folderPath || '';
+
+                lines.push(`### ${idx + 1}. ${s.n}`);
+                lines.push('');
+                lines.push(`**Request:** \`${method} ${url}\``);
+                if (collectionName) lines.push(`**Collection:** ${collectionName}${folderPath ? ` / ${folderPath.replace(/\//g, ' / ')}` : ''}`);
+                lines.push(`**Response status:** ${s.s}`);
+                if (s.e) lines.push(`**Error:** ${s.e}`);
+                if (manifest.config?.iterations > 1) lines.push(`**Iteration:** ${s.it} of ${manifest.config.iterations}`);
+                lines.push('');
+
+                // Assertion failures
+                if (s.af > 0 && detail?.assertions?.length) {
+                    const failedAssertions = detail.assertions.filter(a => !a.passed && !a.skipped);
+                    if (failedAssertions.length) {
+                        lines.push(`**Failed assertions (${failedAssertions.length}):**`);
+                        failedAssertions.forEach(a => {
+                            lines.push(`- \`${a.name}\`` + (a.message ? ` → ${a.message}` : ''));
+                        });
+                        lines.push('');
+                    }
+                }
+
+                // Request body
+                if (detail?.request?.body) {
+                    const reqBody = detail.request.body;
+                    const bodyContent = typeof reqBody === 'object' && 'content' in reqBody
+                        ? reqBody.content
+                        : reqBody;
+                    const bodyType = typeof reqBody === 'object' && 'type' in reqBody ? reqBody.type : undefined;
+                    if (bodyContent && bodyType !== 'none') {
+                        lines.push(`**Request body:**`);
+                        lines.push(bodyText(bodyContent));
+                        lines.push('');
+                    }
+                }
+
+                // Response body
+                if (detail?.response?.body !== undefined && detail.response.body !== null) {
+                    lines.push(`**Response body:**`);
+                    lines.push(bodyText(detail.response.body));
+                    lines.push('');
+                }
+
+                // Console output
+                if (detail?.consoleOutput?.length) {
+                    lines.push(`**Console output:**`);
+                    lines.push('```');
+                    lines.push(detail.consoleOutput.slice(0, 20).join('\n'));
+                    lines.push('```');
+                    lines.push('');
+                }
+            });
+        }
+
+        // ── Passed requests (brief list) ──────────────────────────────────────
+        const passedSummaries = summaries.filter(s => s.p);
+        if (passedSummaries.length > 0) {
+            lines.push(`## ✅ Passed Requests`);
+            lines.push('');
+            passedSummaries.forEach((s, idx) => {
+                const method = HTTP_METHOD_REVERSE[s.m] ?? String(s.m);
+                lines.push(`${idx + 1}. **${s.n}** — \`${method}\` → HTTP ${s.s} (${fmtMs(s.d)})`);
+            });
+            lines.push('');
+        }
+
+        // ── Source files ──────────────────────────────────────────────────────
+        lines.push(`## 📁 Source Files`);
+        lines.push('');
+
+        const targetType = manifest.targetType ?? (manifest.folderPath ? 'folder' : (manifest.collectionName ? 'collection' : 'suite'));
+        const targetName = manifest.targetName || manifest.suiteName;
+        const collectionName = manifest.collectionName || '';
+        const folderPath = manifest.folderPath || '';
+
+        if (targetType === 'folder') {
+            lines.push(`The collection folder definition is in the \`.http-forge/assets/collections/<collectionName>/<folderPath>/\` path of your HTTP Forge workspace.`);
+            lines.push(`Run context: ${targetName}${suiteId ? ` (${suiteId})` : ''}`);
+            if (collectionName) lines.push(`Collection: ${collectionName}`);
+            if (folderPath) lines.push(`Folder: ${folderPath.split('/').filter(Boolean).join(' / ')}`);
+        } else if (targetType === 'collection') {
+            lines.push(`The collection definition is in the \`.http-forge/assets/collections/<collectionName>/\` directory of your HTTP Forge workspace.`);
+            lines.push(`Run context: ${targetName}${suiteId ? ` (${suiteId})` : ''}`);
+            if (collectionName) lines.push(`Collection: ${collectionName}`);
+        } else {
+            lines.push(`The suite definition is in the \`suites/\` directory of your HTTP Forge workspace.`);
+            lines.push(`Suite ID: \`${suiteId}\``);
+            lines.push(`Run context: ${targetName}${suiteId ? ` (${suiteId})` : ''}`);
+        }
+
+        lines.push('');
+        lines.push(`Each request definition (description, scripts, response schema) is in:`);
+        lines.push(`\`.http-forge/assets/collections/<collectionName>/<folderPath>/<requestName>/\``);
+        lines.push('');
+
+        // ── Context required ──────────────────────────────────────────────────
+        lines.push(`## 📎 Context Required Before Analysis`);
+        lines.push('');
+        lines.push(`HTTP Forge provides the test definitions, assertion scripts, and response data above.`);
+        lines.push(`To understand failures from a **business perspective**, you also need:`);
+        lines.push('');
+        lines.push(`**Ask the user to provide:**`);
+        lines.push(`1. The backend service/controller handling these endpoints`);
+        lines.push(`   *(e.g. \`BookmarkController.java\`, \`UserService.ts\`)*`);
+        lines.push(`2. Domain model or entity classes if applicable`);
+        lines.push(`3. Any relevant unit/integration tests`);
+        lines.push('');
+        lines.push(`> Without backend code, analysis is limited to HTTP mechanics only.`);
+        lines.push(`> With it, you can identify business rule violations, data dependency issues,`);
+        lines.push(`> and whether a failure is a real regression or a test data problem.`);
+        lines.push('');
+
+        // ── How to analyse ────────────────────────────────────────────────────
+        lines.push(`## 🤖 How to Analyse These Failures`);
+        lines.push('');
+        lines.push(`**Step 1 — Gather business context** (in priority order):`);
+        lines.push(`- Read the source request files linked above (description, scripts, response schema)`);
+        lines.push(`- Read the workspace collections and test suites — they are the primary source of truth`);
+        lines.push(`- Use the response bodies above as context`);
+        lines.push(`- Optional: if a Confluence/Jira MCP server is configured (and the team keeps`);
+        lines.push(`  knowledge pages there), search those for acceptance criteria, API specs, or known`);
+        lines.push(`  issues — otherwise skip it. A complete analysis is possible from the workspace alone.`);
+        lines.push('');
+        lines.push(`> **Note:** A Confluence/Jira MCP server is an optional extra — it may help surface`);
+        lines.push(`> acceptance criteria and API specs if the team keeps knowledge pages there. Without it,`);
+        lines.push(`> the workspace code, collections, and test suites are sufficient for a full analysis.`);
+        lines.push('');
+        lines.push(`**Step 2 — Determine root cause for each failure:**`);
+        lines.push(`- **Test data issue** — the resource doesn't exist yet or was deleted by a prior request`);
+        lines.push(`- **API regression** — the endpoint changed behaviour unexpectedly`);
+        lines.push(`- **Assertion bug** — the test expectation itself is wrong`);
+        lines.push(`- **Environment/config issue** — wrong base URL, missing auth token, wrong environment`);
+        lines.push(`- **Sequencing issue** — depends on a prior request that also failed`);
+        lines.push('');
+        lines.push(`**Step 3 — Suggest concrete fixes:**`);
+        lines.push(`- Corrected \`pm.test()\` snippets`);
+        lines.push(`- Request changes (headers, body, URL)`);
+        lines.push(`- Environment variable adjustments`);
+        lines.push('');
+        lines.push(`> If source code and documentation conflict, **treat the source code as ground truth**.`);
+        lines.push(`> Do NOT suggest disabling or weakening assertions unless the assertion itself is wrong.`);
+
+        // Include suite definition JSON when available — helpful for AI-assisted analysis
+        if (suiteDef) {
+            try {
+                const suiteJson = JSON.stringify(suiteDef, null, 2);
+                lines.push('');
+                lines.push(`## 🔧 Suite Definition`);
+                lines.push('');
+                lines.push('```json');
+                const MAX_SUITE_CHARS = 10000;
+                if (suiteJson.length > MAX_SUITE_CHARS) {
+                    lines.push(suiteJson.slice(0, MAX_SUITE_CHARS));
+                    lines.push(`\n... [${suiteJson.length - MAX_SUITE_CHARS} chars truncated]`);
+                } else {
+                    lines.push(suiteJson);
+                }
+                lines.push('```');
+                lines.push('');
+            } catch {
+                // ignore
+            }
+        }
+
+        return lines.join('\n') + '\n';
+    }
+}

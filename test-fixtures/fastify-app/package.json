@@ -1,0 +1,9 @@
+{
+  "name": "fastify-app-fixture",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "dependencies": {
+    "fastify": "^4.26.0"
+  }
+}
