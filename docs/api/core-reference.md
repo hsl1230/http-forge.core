@@ -973,6 +973,7 @@ When the config lives in `workspace/.http-forge/http-forge.config.json` (integra
 * **Integrated** — `workspace/.http-forge/assets/{collections,environments,suites}`. Config priority: `workspace/http-forge.config.json` **before** `workspace/.http-forge/http-forge.config.json`. Open `workspace/.http-forge/assets` directly → normalized to `workspace`.
 * **Standalone (any name)** — clone the forge repo as `my-standalone` / `http-forge-assets` / any name, open that folder. `assets/` at root or bare `collections/` at root. No nested `.http-forge` required. Generic `my-standalone/assets` opened directly → normalized to `my-standalone`. Detection is structural (`assets/collections` exists), not name-based.
 * **Lazy creation** — opening an empty folder does not create `.http-forge` on `ConfigService`/`CollectionService` construction. First `createCollection`/`createSuite`/`saveEnvironment` creates `assets/collections` (or `.http-forge/assets/collections` for integrated) and `AGENTS.md` once.
+* **Lazy request hydration** — folder collections load tree metadata first. Heavy per-request fields such as `body.json`, scripts, schemas, and `doc.md` are hydrated on demand through `findRequest()` / `getRequestDetail()` before execution or editing.
 ```
 
 **`McpConfig`** — controls what the HTTP Forge MCP server exposes to AI agents. All fields are optional; the service fills defaults automatically via `IConfigService.getMcpConfig()`.

@@ -78,8 +78,12 @@ export class EnvironmentConfigService implements IEnvironmentConfigService {
         this.localConfigPath = path.join(environmentsPath, '_global.local.json');
         this.historiesPath = configService.getHistoryPath();
 
-        // Restore selected environment from workspace state
-        this.selectedEnvironment = workspaceStore?.get<string>(STATE_KEYS.SELECTED_ENVIRONMENT, 'dev') ?? 'dev';
+        // Restore selected environment from workspace state, falling back to the
+        // configured default environment (config.environments.default) and then 'dev'.
+        const storedSelected = workspaceStore?.get<string>(STATE_KEYS.SELECTED_ENVIRONMENT);
+        const getEnvsConfig = (this.configService as any).getEnvironmentsConfig;
+        const configuredDefault = typeof getEnvsConfig === 'function' ? getEnvsConfig.call(this.configService)?.default : undefined;
+        this.selectedEnvironment = storedSelected ?? (configuredDefault || 'dev');
 
         // Restore persisted environment variable overrides from workspace state
         // These are "Current Values" set by pm.environment.set() — survive restarts

@@ -22,6 +22,18 @@ import { deleteItemFromTree, findItemById } from './folder-io';
 import * as fs from 'fs';
 import * as path from 'path';
 
+function requestNeedsBodyHydration(body: any): boolean {
+    if (body == null) return true;
+    if (typeof body !== 'object') return false;
+    if (body.type === 'raw') {
+        return body.content == null || body.content === '';
+    }
+    if (body.type === 'graphql') {
+        return body.content == null && !body.query;
+    }
+    return false;
+}
+
 /**
  * Detects the body type from content string.
  * Returns one of: 'json' | 'xml' | 'html' | 'javascript' | 'text'
@@ -493,9 +505,12 @@ export class CollectionService implements ICollectionService {
         }
         const found = this.findItemRecursive(collection.items, requestId) as CollectionRequestItem | undefined;
         if (!found) return undefined;
-        // Enrich on demand, but ONLY for light-loaded items that haven't been
-        // enriched yet. Fully-loaded items skip disk I/O entirely.
-        if (isLightLoaded(found)) {
+        // Enrich on demand. Light-loaded items always need hydration. Items that
+        // are already marked detailed but still lack a usable body (for example
+        // after a lazy reload or an externally added body.json) are also
+        // re-hydrated so request execution and editors see the current body.
+        const needsHydration = isLightLoaded(found) || requestNeedsBodyHydration(found.body);
+        if (needsHydration) {
             const detail = this.loader.loadRequestDetail?.(collectionId, requestId) as CollectionRequestItem | undefined;
             markDetailLoaded(detail ?? found);
             if (detail) return detail;

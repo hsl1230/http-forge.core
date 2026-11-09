@@ -1,6 +1,6 @@
 {
   "name": "@http-forge/core",
-  "version": "1.0.1",
+  "version": "1.0.2",
   "description": "Headless Postman-compatible API testing engine for Node.js, CI/CD, OpenAPI workflows, and HTTP Forge automation",
   "main": "./dist/index.js",
   "module": "./dist/index.mjs",

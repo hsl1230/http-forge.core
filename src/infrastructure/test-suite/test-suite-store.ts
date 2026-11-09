@@ -272,6 +272,14 @@ export class TestSuiteStore implements ITestSuiteStore {
                     folderAuthChain = requestData.folderAuthChain;
                     resolvedFolderPath = requestData.folderPath;
                 }
+
+                // Hydrate the request body from the live collection. Suite folders
+                // snapshot request metadata and may not include an externally
+                // stored body.json, so resolve the current body on demand.
+                const liveRequest = this.collectionService.findRequest(collection.id, suiteRequest.requestId);
+                if (liveRequest?.body != null) {
+                    embeddedRequest.body = liveRequest.body;
+                }
             }
 
             return {

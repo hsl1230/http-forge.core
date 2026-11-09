@@ -366,6 +366,7 @@ const forge = new ForgeContainer({
 
 - `@http-forge/core` sends request bodies for all HTTP methods. This includes DELETE, GET, HEAD, and OPTIONS, matching RFC 9110 and Postman behavior.
 - When `useNativeHttp: true` is enabled, the native Node.js HTTP client uses explicit `Content-Length` handling so backend services receive the body payload reliably.
+- Folder-format requests may store the body in `body.json`. HTTP Forge hydrates that file on demand when the request is opened or run; externally added or edited `body.json` files are picked up after reopening the request or refreshing collections.
 - If a request still fails, verify the request headers and body content in the response detail or development logs.
 
 ### Collection Not Found
