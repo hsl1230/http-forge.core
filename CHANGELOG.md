@@ -19,6 +19,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `CollectionService.findRequest()` now hydrates missing body content from `body.json` on demand, so lazy-loaded requests and externally edited body files are picked up before execution and editing.
 - `TestSuiteStore.resolveRequestEntry()` now hydrates embedded suite request bodies from the live collection, including body content stored in `body.json`.
 - Custom module files and their local dependencies are now refreshed at the start of each run, so edited modules are picked up on the next run without reloading VS Code. Module instances remain stable within a single run.
+- Self-defined modules can now be required by bare name (for example `require('helper')`) when a matching file exists in the active module directory. Relative requires such as `require('./helper')` continue to work; installed npm packages take precedence over local files with the same name.
 
 ## 1.0.1 - 2026-10-29
 

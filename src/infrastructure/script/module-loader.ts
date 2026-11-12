@@ -484,6 +484,45 @@ export class ModuleLoader {
                     }
                 }
 
+                // 4b. Self-defined local module files in the active module directory.
+                // A bare name such as require('abc') resolves to ./abc.js (or
+                // ./abc/index.js) when that file exists. npm packages declared in
+                // package.json take precedence, so installed dependencies keep
+                // their normal resolution behavior.
+                if (this.customModulesRequire && this.modulesPath && !moduleName.startsWith('./') && !moduleName.startsWith('../')) {
+                    const relativeName = `./${moduleName}`;
+                    const resolvedPath = path.resolve(this.modulesPath, relativeName);
+                    const normalizedResolved = path.normalize(resolvedPath);
+                    const normalizedModules = path.normalize(this.modulesPath);
+
+                    if (normalizedResolved === normalizedModules || normalizedResolved.startsWith(normalizedModules + path.sep)) {
+                        const localCandidates = [
+                            resolvedPath,
+                            `${resolvedPath}.js`,
+                            `${resolvedPath}.json`,
+                            `${resolvedPath}.ts`,
+                            path.join(resolvedPath, 'index.js'),
+                        ];
+
+                        if (localCandidates.some((candidate) => {
+                            try {
+                                return fs.existsSync(candidate) && fs.statSync(candidate).isFile();
+                            } catch {
+                                return false;
+                            }
+                        })) {
+                            try {
+                                this.logDebug(`Loading local module: ${moduleName}`);
+                                const module = this.customModulesRequire(relativeName);
+                                this.cacheModule(moduleName, module, 'relative', Date.now() - startTime);
+                                return module;
+                            } catch (error: any) {
+                                throw new Error(`Failed to load local module '${moduleName}': ${error.message}`);
+                            }
+                        }
+                    }
+                }
+
                 // 5. Module not found
                 const suggestions = this.getModuleSuggestions(moduleName);
                 let errorMessage = `Module '${moduleName}' is not available.`;
