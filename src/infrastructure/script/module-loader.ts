@@ -232,6 +232,19 @@ export class ModuleLoader {
             }
         };
 
+        // Invalidate Node's require cache for files under any configured module
+        // path before initializing. This lets a new ModuleLoader (created for a
+        // new run) pick up edits to local modules and their local dependencies
+        // without reloading the whole VS Code/Node process.
+        for (const modulePath of modulePaths) {
+            const resolvedModulePath = path.resolve(modulePath);
+            for (const cachedPath of Object.keys(require.cache)) {
+                if (cachedPath === resolvedModulePath || cachedPath.startsWith(resolvedModulePath + path.sep)) {
+                    delete require.cache[cachedPath];
+                }
+            }
+        }
+
         // Try each module path until we find one with package.json
         for (const modulePath of modulePaths) {
             const resolvedModulePath = path.resolve(modulePath);
@@ -523,9 +536,16 @@ export class ModuleLoader {
         ].sort();
     }
 
-    /** Clear module cache */
+    /** Clear module cache and the Node require cache for this module directory */
     clearCache(): void {
         this.moduleCache.clear();
+        if (this.modulesPath) {
+            for (const cachedPath of Object.keys(require.cache)) {
+                if (cachedPath === this.modulesPath || cachedPath.startsWith(this.modulesPath + path.sep)) {
+                    delete require.cache[cachedPath];
+                }
+            }
+        }
         this.logDebug('Module cache cleared');
     }
 

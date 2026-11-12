@@ -162,6 +162,20 @@ export interface IScriptExecutor {
      * (Postman-compatible behavior)
      */
     createRequestSession(context: PreRequestScriptContext): IRequestScriptSession;
+
+    /**
+     * Start a run-scoped module refresh boundary.
+     *
+     * Custom module files (and their local dependencies) are re-read from disk
+     * for the first request of a run, then cached for the remainder of that run
+     * so all requests in the run use one consistent version.
+     */
+    beginRun?(): void;
+
+    /**
+     * End a run-scoped module refresh boundary.
+     */
+    endRun?(): void;
 }
 
 /**

@@ -309,8 +309,11 @@ export class TestSuiteStore implements ITestSuiteStore {
             return undefined;
         }
 
+        const request = this.collectionService.findRequest(collection.id, suiteRequest.requestId)
+            ?? requestData.request;
+
         return {
-            request: requestData.request,
+            request,
             suiteRequest,
             collectionScripts: collection.scripts,
             collectionAuth: collection.auth,
@@ -656,4 +659,3 @@ export class TestSuiteStore implements ITestSuiteStore {
             .map((n: any) => n.request as SuiteRequest);
     }
 }
-

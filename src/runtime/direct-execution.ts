@@ -126,6 +126,7 @@ export async function runRequest(options: RunRequestOptions): Promise<unknown> {
   const generateReports = shouldGenerateReports(include, reporters);
 
   try {
+    container.scriptExecutor?.beginRun?.();
     const collectionService = container.collection;
     const collection = resolveCollectionForRun(collectionService, options);
 
@@ -268,6 +269,7 @@ export async function runRequest(options: RunRequestOptions): Promise<unknown> {
   } catch (err) {
     throw err;
   } finally {
+    container.scriptExecutor?.endRun?.();
     disposeContainerResources(container);
   }
 }
@@ -281,6 +283,7 @@ export async function runCollection(options: RunCollectionOptions): Promise<unkn
   const container = createNodeContainer(options.workspaceFolder);
 
   try {
+    container.scriptExecutor?.beginRun?.();
     const collectionService = container.collection;
     const collection = resolveCollectionForRun(collectionService, options);
 
@@ -344,6 +347,7 @@ export async function runCollection(options: RunCollectionOptions): Promise<unkn
   } catch (err) {
     throw err;
   } finally {
+    container.scriptExecutor?.endRun?.();
     disposeContainerResources(container);
   }
 }
@@ -368,6 +372,7 @@ export async function runSuite(options: RunSuiteOptions): Promise<unknown> {
   const container = createNodeContainer(options.workspaceFolder);
 
   try {
+    container.scriptExecutor?.beginRun?.();
     const testSuiteService = container.testSuite;
     const suite = await testSuiteService.getSuite(options.suiteId);
 
@@ -389,6 +394,7 @@ export async function runSuite(options: RunSuiteOptions): Promise<unknown> {
   } catch (err) {
     throw err;
   } finally {
+    container.scriptExecutor?.endRun?.();
     disposeContainerResources(container);
   }
 }

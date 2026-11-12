@@ -6,6 +6,7 @@ import { ConfigService } from '../infrastructure/config/config-service';
 import { CollectionService } from '../infrastructure/collection/collection-service';
 import { isLightLoaded } from '../infrastructure/collection/collection-store';
 import { FolderCollectionStore } from '../infrastructure/collection/folder-collection-store';
+import { TestSuiteStore } from '../infrastructure/test-suite/test-suite-store';
 import type { CollectionRequestItem } from '../types/collection';
 
 /**
@@ -174,6 +175,27 @@ describe('collection light loading', () => {
         expect(found?.body?.content).toContain('widget');
         expect(found?.doc).toContain('Creates an order');
         expect(isLightLoaded(found as CollectionRequestItem)).toBe(false);
+    });
+
+    it('suite request resolution hydrates external bodies from light-loaded collections', async () => {
+        const ws = mkTemp('light-suite-');
+        const config = new ConfigService(ws);
+        const collectionsDir = config.getCollectionsPath();
+        fs.mkdirSync(collectionsDir, { recursive: true });
+        const { collectionId } = await seedCollectionsDir(collectionsDir);
+
+        const collectionService = new CollectionService(config);
+        const suiteStore = new TestSuiteStore(collectionService);
+        const entry = suiteStore.resolveRequestEntry({
+            collectionId,
+            collectionName: 'Shop',
+            requestId: 'req-1',
+            name: 'Create order',
+            method: 'POST',
+            folderPath: ''
+        });
+
+        expect(entry?.request.body?.content).toContain('widget');
     });
 
     it('service getRequestScript and getRequestDetail work on light items', async () => {

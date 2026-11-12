@@ -5,6 +5,12 @@ All notable changes to @http-forge/core will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## 1.0.3 - 2026-11-09
+
+### Fixed
+
+- `TestSuiteStore.resolveRequestEntry()` now hydrates requests resolved directly from a collection, so folder-based suite runs include body content stored in external files such as `body.json`.
+
 ## 1.0.2 - 2026-11-09
 
 ### Fixed
@@ -12,6 +18,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `EnvironmentConfigService` now honors `environments.default` from `http-forge.config.json` when no environment is explicitly selected (so workspaces like `http-forge.examples` open with their intended default env, e.g. `demo`).
 - `CollectionService.findRequest()` now hydrates missing body content from `body.json` on demand, so lazy-loaded requests and externally edited body files are picked up before execution and editing.
 - `TestSuiteStore.resolveRequestEntry()` now hydrates embedded suite request bodies from the live collection, including body content stored in `body.json`.
+- Custom module files and their local dependencies are now refreshed at the start of each run, so edited modules are picked up on the next run without reloading VS Code. Module instances remain stable within a single run.
 
 ## 1.0.1 - 2026-10-29
 

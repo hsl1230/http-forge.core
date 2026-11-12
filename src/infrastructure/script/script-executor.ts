@@ -39,7 +39,10 @@ import { VariableScopeFactory } from './variable-scopes';
  * - Delegating session management to RequestScriptSession
  */
 export class ScriptExecutor implements IScriptExecutor {
-    private readonly moduleLoader: ModuleLoader;
+    private readonly baseModuleLoader: ModuleLoader;
+    private runModuleLoader: ModuleLoader | null = null;
+    private runDepth = 0;
+    private readonly modulePaths: string[];
     private readonly variableScopes = new VariableScopeFactory();
 
     constructor(
@@ -49,7 +52,36 @@ export class ScriptExecutor implements IScriptExecutor {
         private readonly scopeMode: 'shared' | 'isolated' = 'shared',
         private readonly scriptTimeoutMs: number = 5000
     ) {
-        this.moduleLoader = createModuleLoader(modulePaths);
+        this.modulePaths = [...modulePaths];
+        this.baseModuleLoader = createModuleLoader(this.modulePaths);
+    }
+
+    /**
+     * Start a run-scoped module loader. The first beginRun() in a run creates a
+     * fresh loader (and clears cached local module files); nested calls reuse it.
+     */
+    public beginRun(): void {
+        if (this.runDepth === 0) {
+            this.runModuleLoader = createModuleLoader(this.modulePaths);
+        }
+        this.runDepth++;
+    }
+
+    /**
+     * End a run-scoped module loader. When the outermost run finishes, the next
+     * beginRun() will create a fresh loader.
+     */
+    public endRun(): void {
+        if (this.runDepth > 0) {
+            this.runDepth--;
+        }
+        if (this.runDepth === 0) {
+            this.runModuleLoader = null;
+        }
+    }
+
+    private get moduleLoader(): ModuleLoader {
+        return this.runModuleLoader ?? this.baseModuleLoader;
     }
 
     /**
