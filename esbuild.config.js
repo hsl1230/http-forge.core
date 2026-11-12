@@ -1,6 +1,8 @@
 const esbuild = require('esbuild');
 
 const production = process.argv.includes('--production');
+const fs = require('fs');
+const path = require('path');
 
 // Dependencies that must stay as runtime require()/import() calls instead of
 // being inlined into the bundle. They are only needed by the Postman script
@@ -55,7 +57,7 @@ const external = [
 // Raised to 764 KB (2026-10) for Phase 1 WebSocket support: the Node ws
 // adapter, WebSocket request config types, and persistence/guards (~4 KB
 // minified; ws itself remains external and is imported lazily).
-const SIZE_BUDGET_BYTES = 786 * 1024;
+const SIZE_BUDGET_BYTES = 788 * 1024; // +2 KB for automatic .http-forge workspace template files
 
 async function build() {
   const commonConfig = {
@@ -90,6 +92,17 @@ async function build() {
     });
 
     console.log('✓ Build complete');
+
+    // Ship workspace template files (kept out of the JS bundle) so
+    // ensureForgeWorkspaceFiles() can create them without bloating bundle size.
+    const templateSrc = path.join(__dirname, 'src', 'infrastructure', 'collection', 'templates');
+    const templateDest = path.join(__dirname, 'dist', 'templates');
+    if (fs.existsSync(templateSrc)) {
+      fs.mkdirSync(templateDest, { recursive: true });
+      for (const entry of fs.readdirSync(templateSrc)) {
+        fs.copyFileSync(path.join(templateSrc, entry), path.join(templateDest, entry));
+      }
+    }
 
     if (production) {
       const fs = require('fs');

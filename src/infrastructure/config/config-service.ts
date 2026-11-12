@@ -25,6 +25,7 @@ import type {
     StorageConfig
 } from './config.interface';
 import { CONFIG_FILES, DEFAULT_CONFIG, ROOT_DIRECTORIES } from './default-config';
+import { ensureAgentsMdFile } from '../collection/agents-md';
 
 /**
  * Configuration Service Implementation
@@ -591,6 +592,10 @@ export class ConfigService implements IConfigService {
         const defaultConfig = this.getDefaultConfigForCurrentLocation();
         const content = JSON.stringify(defaultConfig, null, 2);
         await fs.promises.writeFile(this.configPath, content, 'utf-8');
+
+        // Ensure the supporting workspace files (AGENTS.md, jsconfig, globals
+        // declarations, and module package.json) exist alongside the config.
+        ensureAgentsMdFile(this.configDir);
 
         // Create the root directory structure
         const dirs = [

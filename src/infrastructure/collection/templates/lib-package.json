@@ -1,0 +1,14 @@
+{
+  "name": "lib",
+  "version": "1.0.0",
+  "main": "index.js",
+  "scripts": {
+    "test": "node --test"
+  },
+  "author": "",
+  "license": "ISC",
+  "description": "",
+  "dependencies": {
+    "yaml": "^2.8.2"
+  }
+}

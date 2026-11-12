@@ -16,6 +16,7 @@
 
 import * as fs from 'fs';
 import * as path from 'path';
+import { DEFAULT_CONFIG } from '../config/default-config';
 
 /** Current template version. Bump when `buildAgentsMdContent()` changes. */
 export const AGENTS_MD_VERSION = 4;
@@ -100,9 +101,10 @@ export interface AgentsMdRefreshResult {
  */
 export function refreshAgentsMd(forgeDir: string): AgentsMdRefreshResult {
     const guidePath = getAgentsMdPath(forgeDir);
+    fs.mkdirSync(forgeDir, { recursive: true });
+    ensureForgeWorkspaceFiles(forgeDir);
     const fresh = buildAgentsMdContent();
     if (!fs.existsSync(guidePath)) {
-        fs.mkdirSync(forgeDir, { recursive: true });
         fs.writeFileSync(guidePath, fresh, 'utf-8');
         return {
             path: guidePath,
@@ -137,12 +139,75 @@ export function refreshAgentsMd(forgeDir: string): AgentsMdRefreshResult {
  */
 export function ensureAgentsMdFile(forgeDir: string): boolean {
     const guidePath = getAgentsMdPath(forgeDir);
-    if (fs.existsSync(guidePath)) {
-        return false;
+    const created = !fs.existsSync(guidePath);
+    if (created) {
+        fs.mkdirSync(forgeDir, { recursive: true });
+        fs.writeFileSync(guidePath, buildAgentsMdContent(), 'utf-8');
     }
+    ensureForgeWorkspaceFiles(forgeDir);
+    return created;
+}
+
+/**
+ * Ensure the supporting files that make a `.http-forge` workspace usable from
+ * VS Code are present. This is write-once: existing files are never overwritten.
+ */
+export function ensureForgeWorkspaceFiles(forgeDir: string): void {
+    if (path.basename(forgeDir) !== '.http-forge') {
+        return;
+    }
+
     fs.mkdirSync(forgeDir, { recursive: true });
-    fs.writeFileSync(guidePath, buildAgentsMdContent(), 'utf-8');
-    return true;
+
+    const assetsDir = path.join(forgeDir, 'assets');
+    const libDir = path.join(assetsDir, 'lib');
+    const srcDir = path.join(assetsDir, 'src');
+    fs.mkdirSync(assetsDir, { recursive: true });
+    fs.mkdirSync(libDir, { recursive: true });
+    fs.mkdirSync(srcDir, { recursive: true });
+
+    const configPath = path.join(forgeDir, 'http-forge.config.json');
+    if (!fs.existsSync(configPath)) {
+        const defaultConfig = {
+            ...DEFAULT_CONFIG,
+            storage: {
+                ...DEFAULT_CONFIG.storage,
+                root: './assets',
+                history: './.cache/histories',
+                results: './.cache/results',
+            },
+            scripts: {
+                ...DEFAULT_CONFIG.scripts,
+                modulePaths: ['./assets/src', './assets/lib'],
+            },
+        };
+        fs.writeFileSync(configPath, JSON.stringify(defaultConfig, null, 2) + '\\n', 'utf-8');
+    }
+
+    writeFileIfMissing(path.join(assetsDir, 'http-forge-globals.d.ts'), readTemplateFile('http-forge-globals.d.ts', 'declare const pm: any;\ndeclare const ctx: any;\ndeclare const hf: any;\n'));
+    writeFileIfMissing(path.join(assetsDir, 'jsconfig.json'), readTemplateFile('jsconfig.json', JSON.stringify({ compilerOptions: { target: 'ES2020', module: 'commonjs', allowJs: true, checkJs: false }, include: ['**/*.js', '**/*.d.ts'] }, null, 2) + '\\n'));
+    writeFileIfMissing(path.join(libDir, 'package.json'), readTemplateFile('lib-package.json', JSON.stringify({ name: 'lib', version: '1.0.0', main: 'index.js', scripts: { test: 'node --test' }, author: '', license: 'ISC', description: '', dependencies: { yaml: '^2.8.2' } }, null, 2) + '\\n'));
+}
+
+
+function readTemplateFile(fileName: string, fallback: string): string {
+    try {
+        const templatePath = path.join(__dirname, 'templates', fileName);
+        if (fs.existsSync(templatePath)) {
+            return fs.readFileSync(templatePath, 'utf-8');
+        }
+    } catch {
+        // Fall through to the minimal fallback below.
+    }
+    return fallback;
+}
+
+function writeFileIfMissing(filePath: string, content: string): void {
+    if (fs.existsSync(filePath)) {
+        return;
+    }
+    fs.mkdirSync(path.dirname(filePath), { recursive: true });
+    fs.writeFileSync(filePath, content, 'utf-8');
 }
 
 /**
@@ -729,3 +794,4 @@ suggest_assertions → generate pm.test() assertions for a request
 > Single \`run_request\` calls do not generate a report unless \`include: ["report"]\` is also passed.
 `;
 }
+
