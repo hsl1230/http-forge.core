@@ -326,7 +326,9 @@ export async function runCollection(options: RunCollectionOptions): Promise<unkn
         delay: 0,
         stopOnError: options.stopOnError ?? false,
         readFromSharedSession: false,
-        writeToSharedSession: false
+        writeToSharedSession: false,
+        loadPersistedEnvironmentValues: false,
+        usePersistentCookieJar: false
       },
       isTemporary: true,
       createdAt: Date.now(),

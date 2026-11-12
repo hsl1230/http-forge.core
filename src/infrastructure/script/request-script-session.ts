@@ -61,14 +61,15 @@ export class RequestScriptSession implements IRequestScriptSession {
     private consoleMessages: Array<ConsoleMessage> = [];
     
     // Variable state storage
-    private _variables: Record<string, string> = {};
-    private _collectionVariables: Record<string, string> = {};
-    private _globals: Record<string, string> = {};
-    private _environmentVariables: Record<string, string> = {};
+    private _initialVariables: Record<string, string> = {};
+    private _initialCollectionVariables: Record<string, string> = {};
+    private _initialGlobals: Record<string, string> = {};
+    private _initialEnvironment: Record<string, string> = {};
     // Live scope references from createCommonContext (mutated by pm.environment.set() etc.)
-    private _liveEnvironmentScope: any = null;
-    private _liveGlobalsScope: any = null;
-    private _liveCollectionScope: any = null;
+    private _runtimeEnvironment: any = null;
+    private _runtimeGlobals: any = null;
+    private _runtimeCollectionVariables: any = null;
+    private _runtimeVariables: any = null;
 
     // Postman execution flow control
     private _nextRequest: string | null | undefined = undefined; // undefined = not called
@@ -151,14 +152,15 @@ export class RequestScriptSession implements IRequestScriptSession {
         // Store variable references for extraction
         // IMPORTANT: Use the live scope references from commonCtx so that mutations
         // from pm.environment.set() / pm.globals.set() etc. are visible at extraction time
-        this._variables = { ...context.variables };
-        this._collectionVariables = { ...(context.collectionVariables || {}) };
-        this._globals = { ...(context.globals || {}) };
-        this._environmentVariables = { ...(context.environmentVariables || {}) };
+        this._initialVariables = { ...context.variables };
+        this._initialCollectionVariables = { ...(context.collectionVariables || {}) };
+        this._initialGlobals = { ...(context.globals || {}) };
+        this._initialEnvironment = { ...(context.environmentVariables || {}) };
         // Keep a reference to the live scopes for accurate extraction
-        this._liveEnvironmentScope = commonCtx.environment;
-        this._liveGlobalsScope = commonCtx.globals;
-        this._liveCollectionScope = commonCtx.collectionVariables;
+        this._runtimeEnvironment = commonCtx.environment;
+        this._runtimeGlobals = commonCtx.globals;
+        this._runtimeCollectionVariables = commonCtx.collectionVariables;
+        this._runtimeVariables = commonCtx.requestLocalVariables;
 
         // Extract domain from request URL for domain-aware cookie operations
         let requestDomain: string | undefined;
@@ -460,8 +462,8 @@ export class RequestScriptSession implements IRequestScriptSession {
         };
 
         // Variable snapshots — legacy reads only (mutations must go through postman.set*)
-        vmCtx.environment = this._liveEnvironmentScope?.toObject?.() ?? { ...this._environmentVariables };
-        vmCtx.globals = this._liveGlobalsScope?.toObject?.() ?? { ...this._globals };
+        vmCtx.environment = this._runtimeEnvironment?.toObject?.() ?? { ...this._initialEnvironment };
+        vmCtx.globals = this._runtimeGlobals?.toObject?.() ?? { ...this._initialGlobals };
         vmCtx.data = { ...(context.iterationData || {}) };
         if (typeof vmCtx.iteration !== 'number') {
             vmCtx.iteration = 0;
@@ -564,10 +566,11 @@ export class RequestScriptSession implements IRequestScriptSession {
                     query: hasChanged(this.modifiedRequest.query, this.initialContext.request.query || {}) ? this.modifiedRequest.query : undefined
                 },
                 modifiedVariables: this.ctx.variables.toObject(),
-                localVariables: this.ctx.variables.toLocalObject?.() ?? {},
-                modifiedCollectionVariables: this._liveCollectionScope?.toObject() || this._collectionVariables,
-                modifiedGlobals: this._liveGlobalsScope?.toObject() || this._globals,
-                modifiedEnvironmentVariables: this._liveEnvironmentScope?.toObject() || this._environmentVariables,
+                nonGlobalVariables: this.ctx.variables.toLocalObject?.() ?? {},
+                requestLocalWrites: this._runtimeVariables?.toObject() || this._initialVariables,
+                modifiedCollectionVariables: this._runtimeCollectionVariables?.toObject() || this._initialCollectionVariables,
+                modifiedGlobals: this._runtimeGlobals?.toObject() || this._initialGlobals,
+                modifiedEnvironmentVariables: this._runtimeEnvironment?.toObject() || this._initialEnvironment,
                 consoleOutput: consoleOutput.length > 0 ? consoleOutput : undefined,
                 nextRequest: this._nextRequest,
                 skipRequest: this._skipRequest || undefined
@@ -585,8 +588,9 @@ export class RequestScriptSession implements IRequestScriptSession {
                 consoleOutput,
                 // Preserve any variable mutations made before the error
                 modifiedVariables: this.ctx?.variables?.toObject(),
-                localVariables: this.ctx?.variables?.toLocalObject?.() ?? {},
-                modifiedEnvironmentVariables: this._liveEnvironmentScope?.toObject() || this._environmentVariables,
+                nonGlobalVariables: this.ctx?.variables?.toLocalObject?.() ?? {},
+                requestLocalWrites: this._runtimeVariables?.toObject() || this._initialVariables,
+                modifiedEnvironmentVariables: this._runtimeEnvironment?.toObject() || this._initialEnvironment,
                 nextRequest: this._nextRequest,
                 skipRequest: this._skipRequest || undefined
             };
@@ -660,10 +664,11 @@ export class RequestScriptSession implements IRequestScriptSession {
                 testResults: [...this.assertions],
                 consoleOutput: consoleOutput.length > 0 ? consoleOutput : undefined,
                 modifiedVariables: this.ctx?.variables?.toObject?.(),
-                localVariables: this.ctx?.variables?.toLocalObject?.() ?? {},
-                modifiedEnvironmentVariables: this._liveEnvironmentScope?.toObject() || this._environmentVariables,
-                modifiedGlobals: this._liveGlobalsScope?.toObject() || this._globals,
-                modifiedCollectionVariables: this._liveCollectionScope?.toObject() || this._collectionVariables,
+                nonGlobalVariables: this.ctx?.variables?.toLocalObject?.() ?? {},
+                requestLocalWrites: this._runtimeVariables?.toObject() || this._initialVariables,
+                modifiedEnvironmentVariables: this._runtimeEnvironment?.toObject() || this._initialEnvironment,
+                modifiedGlobals: this._runtimeGlobals?.toObject() || this._initialGlobals,
+                modifiedCollectionVariables: this._runtimeCollectionVariables?.toObject() || this._initialCollectionVariables,
                 nextRequest: this._nextRequest,
                 visualizerData: this._visualizerData
             };
@@ -683,11 +688,12 @@ export class RequestScriptSession implements IRequestScriptSession {
                 testResults: [...this.assertions],
                 consoleOutput,
                 modifiedVariables: this.ctx?.variables?.toObject?.(),
-                localVariables: this.ctx?.variables?.toLocalObject?.() ?? {},
+                nonGlobalVariables: this.ctx?.variables?.toLocalObject?.() ?? {},
+                requestLocalWrites: this._runtimeVariables?.toObject() || this._initialVariables,
                 // Preserve any environment mutations made before the error
-                modifiedEnvironmentVariables: this._liveEnvironmentScope?.toObject() || this._environmentVariables,
-                modifiedGlobals: this._liveGlobalsScope?.toObject() || this._globals,
-                modifiedCollectionVariables: this._liveCollectionScope?.toObject() || this._collectionVariables,
+                modifiedEnvironmentVariables: this._runtimeEnvironment?.toObject() || this._initialEnvironment,
+                modifiedGlobals: this._runtimeGlobals?.toObject() || this._initialGlobals,
+                modifiedCollectionVariables: this._runtimeCollectionVariables?.toObject() || this._initialCollectionVariables,
                 nextRequest: this._nextRequest,
                 visualizerData: this._visualizerData
             };

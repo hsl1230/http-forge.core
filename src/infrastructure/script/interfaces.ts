@@ -114,7 +114,9 @@ export interface PreRequestScriptResult {
      * Globals are excluded because they are tracked separately via runtimeGlobals in createResolver,
      * and including the session snapshot would risk shadowing a fresh value from a previous request.
      */
-    localVariables?: Record<string, string>;
+    nonGlobalVariables?: Record<string, string>;
+    /** Only the request-local `pm.variables` scope writes from this script phase. */
+    requestLocalWrites?: Record<string, string>;
     modifiedCollectionVariables?: Record<string, string>;
     modifiedGlobals?: Record<string, string>;
     modifiedEnvironmentVariables?: Record<string, string>;
@@ -132,7 +134,9 @@ export interface PostResponseScriptResult {
     testResults: TestAssertion[];
     consoleOutput?: string[];
     modifiedVariables?: Record<string, string>;
-    localVariables?: Record<string, string>;
+    nonGlobalVariables?: Record<string, string>;
+    /** Only the request-local `pm.variables` scope writes from this script phase. */
+    requestLocalWrites?: Record<string, string>;
     modifiedEnvironmentVariables?: Record<string, string>;
     modifiedGlobals?: Record<string, string>;
     modifiedCollectionVariables?: Record<string, string>;

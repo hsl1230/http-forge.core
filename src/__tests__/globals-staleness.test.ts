@@ -292,7 +292,7 @@ describe('Layer 4 – 4-request chain: set → get → update → get', () => {
 
         expect(globals2.token).toBe('token-1');                              // service snapshot is fresh
         expect(resolvedInReq2).toBe('token-1');                              // {{token}} in body resolves correctly
-        expect(preResult2.localVariables?.captured_token).toBe('token-1');  // pm.globals.get() in pre-request script sees new value
+        expect(preResult2.nonGlobalVariables?.captured_token).toBe('token-1');  // pm.globals.get() in pre-request script sees new value
 
         // ── Request 3: post-response updates token = 'token-3' ──
         const globals3 = svc.getGlobalVariables();
@@ -317,7 +317,7 @@ describe('Layer 4 – 4-request chain: set → get → update → get', () => {
         const preResult4 = await session4.executePreRequest(`
             pm.variables.set('captured_token', pm.globals.get('token'));
         `);
-        expect(preResult4.localVariables?.captured_token).toBe('token-3');  // pm.globals.get() in pre-request sees updated value
+        expect(preResult4.nonGlobalVariables?.captured_token).toBe('token-3');  // pm.globals.get() in pre-request sees updated value
     });
 
     it('same token key updated twice — each subsequent request sees the latest value', async () => {
@@ -430,7 +430,7 @@ describe('Session VM behavior – shared within request, isolated across request
             'pm.variables.set("leak_check", typeof __onlyInSessionA);'
         );
 
-        expect(preResultB.localVariables?.leak_check).toBe('undefined');
+        expect(preResultB.nonGlobalVariables?.leak_check).toBe('undefined');
     });
 });
 
@@ -466,9 +466,9 @@ describe('Postman-compatible undefined / null variable rendering', () => {
         `);
 
         // Renders empty (q=) — NOT the literal "undefined" and NOT the raw {{query}}
-        expect(preResult.localVariables?.rendered).toBe('q=');
+        expect(preResult.nonGlobalVariables?.rendered).toBe('q=');
         // pm.globals.get returns undefined, matching Postman
-        expect(preResult.localVariables?.got_type).toBe('undefined');
+        expect(preResult.nonGlobalVariables?.got_type).toBe('undefined');
     });
 
     it('a global set to null renders as the literal "null" and get() returns null', async () => {
@@ -481,8 +481,8 @@ describe('Postman-compatible undefined / null variable rendering', () => {
             pm.variables.set('got_is_null', pm.globals.get('query') === null ? 'NULL' : 'NOTNULL');
         `);
 
-        expect(preResult.localVariables?.rendered).toBe('q=null');
-        expect(preResult.localVariables?.got_is_null).toBe('NULL');
+        expect(preResult.nonGlobalVariables?.rendered).toBe('q=null');
+        expect(preResult.nonGlobalVariables?.got_is_null).toBe('NULL');
     });
 
     it('a plain string value "undefined" is preserved (not treated as empty)', async () => {
@@ -494,7 +494,7 @@ describe('Postman-compatible undefined / null variable rendering', () => {
             pm.variables.set('rendered', pm.variables.replaceIn('q={{query}}'));
         `);
 
-        expect(preResult.localVariables?.rendered).toBe('q=undefined');
+        expect(preResult.nonGlobalVariables?.rendered).toBe('q=undefined');
     });
 
     it('a missing variable is left as the literal {{token}} (unresolved)', async () => {
@@ -505,7 +505,7 @@ describe('Postman-compatible undefined / null variable rendering', () => {
             pm.variables.set('rendered', pm.variables.replaceIn('q={{nope}}'));
         `);
 
-        expect(preResult.localVariables?.rendered).toBe('q={{nope}}');
+        expect(preResult.nonGlobalVariables?.rendered).toBe('q={{nope}}');
     });
 
     it('an undefined-valued global resolves empty via the service (URL/body) resolver', async () => {

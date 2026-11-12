@@ -191,7 +191,7 @@ export class RequestExecutor {
                 
                 // Apply script modifications
                 if (preResult.modifiedVariables) {
-                    localVariables = { ...localVariables, ...(preResult.localVariables ?? preResult.modifiedVariables) };
+                    localVariables = { ...localVariables, ...(preResult.nonGlobalVariables ?? preResult.modifiedVariables) };
                 }
                 if (preResult.modifiedEnvironmentVariables) {
                     currentEnvVars = { ...currentEnvVars, ...preResult.modifiedEnvironmentVariables };

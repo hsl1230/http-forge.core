@@ -18,6 +18,7 @@ import {
     ITestSuiteService,
     LegacySuiteFileData,
     SuiteForNode,
+    SuiteConfig,
     SuiteRequest,
     SuiteRequestNode,
     TestSuite
@@ -146,7 +147,21 @@ export class TestSuiteService implements ITestSuiteService {
                         description: raw.description,
                         scripts: raw.scripts,
                         nodes,
-                        config: raw.config ?? { ...DEFAULT_SUITE_CONFIG },
+                        config: (() => {
+                            const rawConfig = raw.config ?? {};
+                            const normalized: SuiteConfig = { ...DEFAULT_SUITE_CONFIG, ...rawConfig };
+                            normalized.loadPersistedEnvironmentValues =
+                                normalized.loadPersistedEnvironmentValues ??
+                                normalized.readFromSharedSession ??
+                                false;
+                            normalized.usePersistentCookieJar =
+                                normalized.usePersistentCookieJar ??
+                                normalized.writeToSharedSession ??
+                                false;
+                            normalized.readFromSharedSession = normalized.loadPersistedEnvironmentValues;
+                            normalized.writeToSharedSession = normalized.usePersistentCookieJar;
+                            return normalized;
+                        })(),
                         isTemporary: raw.isTemporary,
                         ai_generated: raw.ai_generated === true,
                         derived_from: Array.isArray(raw.derived_from) ? raw.derived_from as string[] : undefined,

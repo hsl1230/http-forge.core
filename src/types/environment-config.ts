@@ -125,6 +125,7 @@ export interface IVariableManager {
     deleteGlobalVariable(key: string): void;
     clearGlobalVariables(): void;
     getGlobalVariables(): Record<string, string>;
+    getGlobalVariableLocals(): Record<string, string>;
 }
 
 /**

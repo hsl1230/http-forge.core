@@ -223,6 +223,7 @@ export class ScriptExecutor implements IScriptExecutor {
      */
     private createCommonContext(context: CommonScriptContext, eventName: 'prerequest' | 'test') {
         const variables = { ...context.variables };
+        const localWrites: Record<string, string> = {};
         const collectionVariables = { ...(context.collectionVariables || {}) };
         const globals = { ...(context.globals || {}) };
         const environmentVariables = { ...(context.environmentVariables || {}) };
@@ -234,7 +235,27 @@ export class ScriptExecutor implements IScriptExecutor {
             variables, environmentVariables, collectionVariables, globals, iterationData
         );
 
+        // pm.variables.set() writes to the merged scope's highest tier. Track those
+        // writes separately so callers can distinguish request-local variables from
+        // environment/global values that are shadow-copied into the same tier.
+        const baseSet = mergedScope.set.bind(mergedScope);
+        (mergedScope as any).set = (key: string, value: any) => {
+            baseSet(key, value);
+            localWrites[key] = variables[key];
+        };
+        const baseUnset = mergedScope.unset.bind(mergedScope);
+        (mergedScope as any).unset = (key: string) => {
+            baseUnset(key);
+            delete localWrites[key];
+        };
+        const baseClear = mergedScope.clear.bind(mergedScope);
+        (mergedScope as any).clear = () => {
+            baseClear();
+            for (const key of Object.keys(localWrites)) { delete localWrites[key]; }
+        };
+
         // Create individual scopes
+        const localVariablesScope: any = this.variableScopes.createVariableScope(localWrites);
         const rawGlobalsScope: any = this.variableScopes.createGlobalsScope(globals, context.onGlobalsChange);
         const collectionScope: any = this.variableScopes.createVariableScope(collectionVariables);
         const rawEnvironmentScope: any = this.variableScopes.createEnvironmentScope(
@@ -299,6 +320,7 @@ export class ScriptExecutor implements IScriptExecutor {
         return {
             globals: globalsScope,
             collectionVariables: collectionScope,
+            requestLocalVariables: localVariablesScope,
             variables: mergedScope,
             environment: environmentScope,
             iterationData: iterationDataScope,

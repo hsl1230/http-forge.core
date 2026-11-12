@@ -35,6 +35,12 @@ export type ConsoleOutputCallback = (output: string[], source: ConsoleOutputSour
  */
 export interface ICollectionRequestExecutor {
     /**
+     * Set the current data-file row for a data-driven run. Exposed to scripts
+     * as `pm.iterationData` and the legacy `data` object.
+     */
+    setIterationData(iterationData: Record<string, any>): void;
+
+    /**
      * Execute a request with full Postman parity.
      *
      * Flow:

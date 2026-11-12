@@ -924,6 +924,7 @@ export interface ExecutionResult {
     assertions: TestAssertion[];
     consoleOutput?: string[];
     modifiedVariables?: Record<string, string>;
+    requestLocalWrites?: Record<string, string>;
     modifiedEnvironmentVariables?: Record<string, string>;
     modifiedCollectionVariables?: Record<string, string>;
     error?: string;

@@ -349,7 +349,7 @@ Example:
 
 Flow script execution notes:
 - Flow scripts are executed through the same request script session runtime.
-- Variable updates from scripts are merged at runtime through `localVariables`. (`modifiedVariables` is not persisted in result files.)
+- Variable updates from scripts are merged at runtime through `nonGlobalVariables`. (`modifiedVariables` is not persisted in result files.)
 - Existing suites with only `requests` continue to run unchanged.
 
 **Returns:** Result object with:

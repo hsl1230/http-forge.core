@@ -283,7 +283,7 @@ export class SuiteExecutor {
       try {
         if (phase === 'post' && options?.response) {
           const postResult = await session.executePostResponse(sourceCode, options.response);
-          const scriptVariables = postResult.localVariables ?? postResult.modifiedVariables;
+          const scriptVariables = postResult.nonGlobalVariables ?? postResult.modifiedVariables;
           if (scriptVariables && typeof scriptVariables === 'object') {
             // Replace the flow snapshot so unset/clear operations do not leave stale keys.
             flowState.vars = { ...scriptVariables };
@@ -293,7 +293,7 @@ export class SuiteExecutor {
           if (!preResult.success) {
             throw new Error(preResult.error || 'Script execution failed');
           }
-          const scriptVariables = preResult.localVariables ?? preResult.modifiedVariables;
+          const scriptVariables = preResult.nonGlobalVariables ?? preResult.modifiedVariables;
           if (scriptVariables && typeof scriptVariables === 'object') {
             // Replace the flow snapshot so unset/clear operations do not leave stale keys.
             flowState.vars = { ...scriptVariables };

@@ -7,9 +7,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## 1.0.3 - 2026-11-09
 
+### Added
+
+- `CollectionRequestExecutor.setIterationData()` and populated `pm.iterationData` / legacy `data` during collection and suite runs.
+- `getGlobalVariableLocals()` on `IEnvironmentConfigService`.
+- Backward-compatible `loadPersistedEnvironmentValues` / `usePersistentCookieJar` suite config fields.
+
 ### Fixed
 
 - `TestSuiteStore.resolveRequestEntry()` now hydrates requests resolved directly from a collection, so folder-based suite runs include body content stored in external files such as `body.json`.
+
+- `CollectionRequestExecutor` now populates `pm.iterationData` and the legacy `data` object during collection and suite runs.
+- Added `getGlobalVariableLocals()` to `IEnvironmentConfigService` for runtime global values.
+- `SuiteConfig` now supports `loadPersistedEnvironmentValues` and `usePersistentCookieJar` while retaining legacy aliases.
+- Renamed misleading request-script session fields to `initial*` / `runtime*` pairs.
+- Renamed script result fields for clarity: `localVariables` → `nonGlobalVariables`, `modifiedLocalVariables` → `requestLocalWrites`.
+
+### Changed
+
+- Environment and collection variable resolution now preserves non-global scope snapshots without shadowing fresh global values.
+- Shared-session run options were renamed for clarity while remaining backward compatible.
 
 ## 1.0.2 - 2026-11-09
 

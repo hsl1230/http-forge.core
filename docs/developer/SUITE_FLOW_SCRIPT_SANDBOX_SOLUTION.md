@@ -36,7 +36,7 @@ Route flow-node scripts through the existing script session runtime (`container.
 2. Node pre scripts run via `session.executePreRequest(...)`.
 3. Node post scripts (when a response exists) run via `session.executePostResponse(...)`.
 4. Node script variable changes are merged back into flow state from:
-   - `localVariables`
+   - `nonGlobalVariables`
    - `modifiedVariables`
 5. Example flow suite now uses `pm.variables.set(...)` directly.
 
@@ -78,7 +78,7 @@ Existing safeguards remain:
   - Public entry points (`runRequest` / `runCollection` / `runFolder` / `runSuite`) that delegate
     to `suite-executor.ts`.
 - `src/infrastructure/script/interfaces.ts`
-  - `PostResponseScriptResult` extended with optional `modifiedVariables` and `localVariables`.
+  - `PostResponseScriptResult` extended with optional `modifiedVariables` and `nonGlobalVariables`.
 - `src/infrastructure/script/request-script-session.ts`
   - Post-response returns now include variable snapshots for flow-state propagation.
 

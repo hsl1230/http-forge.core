@@ -315,6 +315,8 @@ export const discoveryHandlers: McpToolHandler[] = [
           stopOnError: false,
           readFromSharedSession: false,
           writeToSharedSession: false,
+          loadPersistedEnvironmentValues: false,
+          usePersistentCookieJar: false,
         },
         ai_generated: true,
         derived_from: endpoints.map((ep) => ep.id).filter(Boolean),

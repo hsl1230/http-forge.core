@@ -128,10 +128,14 @@ export interface SuiteConfig {
     delayBetweenRequests: number;
     /** Stop execution on first error */
     stopOnError: boolean;
-    /** Read variables from shared session */
-    readFromSharedSession: boolean;
-    /** Write variables to shared session */
-    writeToSharedSession: boolean;
+    /** @deprecated Use `loadPersistedEnvironmentValues`. Kept for backward compatibility. */
+    readFromSharedSession?: boolean;
+    /** @deprecated Use `usePersistentCookieJar`. Kept for backward compatibility. */
+    writeToSharedSession?: boolean;
+    /** Load persisted environment Current Values from previous runs */
+    loadPersistedEnvironmentValues?: boolean;
+    /** Use the persistent cookie jar across runs */
+    usePersistentCookieJar?: boolean;
     /** Data file path for variable injection */
     dataFilePath?: string;
 }
@@ -313,5 +317,7 @@ export const DEFAULT_SUITE_CONFIG: SuiteConfig = {
     delayBetweenRequests: 0,
     stopOnError: false,
     readFromSharedSession: false,
-    writeToSharedSession: false
+    writeToSharedSession: false,
+    loadPersistedEnvironmentValues: false,
+    usePersistentCookieJar: false
 };

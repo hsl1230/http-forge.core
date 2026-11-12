@@ -57,7 +57,9 @@ const external = [
 // Raised to 764 KB (2026-10) for Phase 1 WebSocket support: the Node ws
 // adapter, WebSocket request config types, and persistence/guards (~4 KB
 // minified; ws itself remains external and is imported lazily).
-const SIZE_BUDGET_BYTES = 788 * 1024; // +2 KB for automatic .http-forge workspace template files
+// +2 KB for automatic .http-forge workspace template files
+// +2 KB for script variable-scope snapshots (collection/local writes surfaced to preview + hover)
+const SIZE_BUDGET_BYTES = 790 * 1024;
 
 async function build() {
   const commonConfig = {

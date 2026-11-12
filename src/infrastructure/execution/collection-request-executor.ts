@@ -56,6 +56,26 @@ export class CollectionRequestExecutor implements ICollectionRequestExecutor {
         private readonly socketIoClient?: ISocketIoClient
     ) {}
 
+    private collectionVariables: Record<string, string> = {};
+    private iterationData: Record<string, any> = {};
+
+    /**
+     * Seed the `pm.collectionVariables` scope for this execution. Callers that
+     * own a collection should pass the collection file values plus any runtime
+     * locals so scripts can read them and unsets can be detected.
+     */
+    public setCollectionVariables(collectionVariables: Record<string, string>): void {
+        this.collectionVariables = { ...collectionVariables };
+    }
+
+    /**
+     * Seed the `pm.iterationData` scope for data-driven runs. The row is the
+     * raw data-file row (Postman-compatible), not the merged variable context.
+     */
+    public setIterationData(iterationData: Record<string, any>): void {
+        this.iterationData = { ...iterationData };
+    }
+
     /**
      * Execute a request with full Postman parity.
      */
@@ -99,6 +119,8 @@ export class CollectionRequestExecutor implements ICollectionRequestExecutor {
         const sessionContext: PreRequestScriptContext = {
             request,
             variables: { ...variables },
+            collectionVariables: { ...this.collectionVariables },
+            iterationData: { ...this.iterationData },
             environmentVariables: resolvedEnv.variables || {},
             globals: { ...initialGlobals },
             environmentName: this.environment,
@@ -135,6 +157,8 @@ export class CollectionRequestExecutor implements ICollectionRequestExecutor {
         const session = this.scriptExecutor.createRequestSession(sessionContext);
 
         let prepared: PreparedRequest | null = null;
+        let requestLocalWrites: Record<string, string> = {};
+        let modifiedCollectionVariables: Record<string, string> = { ...this.collectionVariables };
 
         try {
             // Phase 1: Run pre-request scripts in shared session
@@ -150,6 +174,9 @@ export class CollectionRequestExecutor implements ICollectionRequestExecutor {
 
             if (preRequestScripts.length > 0) {
                 const preResult = await session.executePreRequest(preRequestScripts);
+                requestLocalWrites = preResult.requestLocalWrites || requestLocalWrites;
+
+                modifiedCollectionVariables = preResult.modifiedCollectionVariables || modifiedCollectionVariables;
 
                 // Stream console output
                 if (preResult.consoleOutput && preResult.consoleOutput.length > 0) {
@@ -184,6 +211,8 @@ export class CollectionRequestExecutor implements ICollectionRequestExecutor {
                         passed: true,
                         assertions: [],
                         modifiedVariables: currentVariables,
+                        requestLocalWrites,
+                        modifiedCollectionVariables,
                         nextRequest
                     };
                 }
@@ -198,8 +227,8 @@ export class CollectionRequestExecutor implements ICollectionRequestExecutor {
                             requestToExecute.body = preResult.modifiedRequest.body;
                         }
                     }
-                    if (preResult.localVariables ?? preResult.modifiedVariables) {
-                        currentVariables = preResult.localVariables ?? preResult.modifiedVariables!;
+                    if (preResult.nonGlobalVariables ?? preResult.modifiedVariables) {
+                        currentVariables = preResult.nonGlobalVariables ?? preResult.modifiedVariables!;
                     }
                 }
             }
@@ -329,10 +358,13 @@ export class CollectionRequestExecutor implements ICollectionRequestExecutor {
                 const postResult = await session.executePostResponse(postResponseScripts, responseContext);
                 assertions = postResult.testResults;
                 modifiedEnvironmentVariables = postResult.modifiedEnvironmentVariables || {};
+                requestLocalWrites = postResult.requestLocalWrites || requestLocalWrites;
+
+                modifiedCollectionVariables = postResult.modifiedCollectionVariables || modifiedCollectionVariables;
                 visualizerData = postResult.visualizerData;
 
-                if (postResult.localVariables ?? postResult.modifiedVariables) {
-                    currentVariables = postResult.localVariables ?? postResult.modifiedVariables!;
+                if (postResult.nonGlobalVariables ?? postResult.modifiedVariables) {
+                    currentVariables = postResult.nonGlobalVariables ?? postResult.modifiedVariables!;
                 }
 
                 // Capture flow control signals from post-response (overrides pre-request)
@@ -370,7 +402,9 @@ export class CollectionRequestExecutor implements ICollectionRequestExecutor {
                 passed,
                 assertions,
                 modifiedVariables: currentVariables,
+                requestLocalWrites,
                 modifiedEnvironmentVariables,
+                modifiedCollectionVariables,
                 nextRequest,
                 visualizerData
             };
