@@ -597,7 +597,7 @@ export function createExpectChain(value: any): ExpectChain {
         },
         ['instanceof'](constructor: Function) { return this.instanceOf(constructor); },
 
-        ['throw'](expected?: any) {
+        ['throw'](...args: any[]) {
             if (typeof this._value !== 'function') {
                 throw new Error(`Expected ${JSON.stringify(this._value)} to be a function`);
             }
@@ -605,18 +605,25 @@ export function createExpectChain(value: any): ExpectChain {
             try { this._value(); } catch (error) { thrown = error; }
             const didThrow = thrown !== undefined;
             let matches = didThrow;
-            if (matches && expected !== undefined) {
+            if (matches && args.length > 0) {
                 const message = thrown?.message ?? String(thrown);
-                if (typeof expected === 'string') { matches = message.includes(expected); }
-                else if (expected instanceof RegExp) { matches = expected.test(message); }
-                else if (typeof expected === 'function') { matches = thrown instanceof expected; }
+                // Chai supports throw(constructor?, message?) and throw(message) / throw(regex)
+                const constructor = args.length >= 2 ? args[0] : (typeof args[0] === 'function' ? args[0] : undefined);
+                const messageArg = args.length >= 2 ? args[1] : (typeof args[0] !== 'function' ? args[0] : undefined);
+                if (constructor !== undefined) {
+                    if (typeof constructor === 'function') { matches = matches && thrown instanceof constructor; }
+                }
+                if (messageArg !== undefined && matches) {
+                    if (typeof messageArg === 'string') { matches = message.includes(messageArg); }
+                    else if (messageArg instanceof RegExp) { matches = messageArg.test(message); }
+                }
             }
             this._assert(matches,
-                `Expected ${this._value} to ${this._negated ? 'not ' : ''}throw${expected !== undefined ? ` ${expected}` : ''}`);
+                `Expected ${this._value} to ${this._negated ? 'not ' : ''}throw${args.length > 0 ? ` ${args}` : ''}`);
             return this;
         },
-        throws(expected?: any) { return this['throw'](expected); },
-        Throw(expected?: any) { return this['throw'](expected); },
+        throws(...args: any[]) { return this['throw'](...args); },
+        Throw(...args: any[]) { return this['throw'](...args); },
 
         respondTo(method: string) {
             const target = this._value;

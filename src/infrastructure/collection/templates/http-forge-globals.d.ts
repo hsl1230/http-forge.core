@@ -58,7 +58,6 @@ interface HttpForgeResponse {
     json(): any;
     text(): string;
     reason(): string;
-    getHeader(name: string): string | undefined;
     to: {
         have: {
             status(code: number): void;
@@ -77,11 +76,45 @@ interface HttpForgeResponse {
     };
 }
 
+interface HttpForgeRequestUrl {
+    toString(): string;
+    valueOf(): string;
+    getHost(): string;
+    getPath(): string;
+    getPathWithQuery(): string;
+    getQueryString(): string;
+    getRemote(): string;
+    getOAuth1BaseUrl(): string;
+    protocol: string;
+    host: string[];
+    port: string;
+    path: string[];
+    hash: string;
+    query: {
+        toObject(): Record<string, string>;
+        has(key: string): boolean;
+        get(key: string): string | undefined;
+        each(cb: (param: { key: string; value: string }) => void): void;
+    };
+}
+
 interface HttpForgeRequest {
+    url: HttpForgeRequestUrl;
     method: string;
-    url: string;
+    headers: HttpForgeHeaderList;
     body: any;
-    headers: Record<string, any>;
+    params: Record<string, any>;
+    query: Record<string, any>;
+    auth: any;
+    certificate: any;
+    description: string | null;
+    name: string | null;
+    id: string | null;
+    disabled: boolean;
+    messages: any[];
+    methodPath: any;
+    metadata: any[];
+    getHeaders(options?: any): any;
 }
 
 interface HttpForgeSendRequestResponse {
@@ -132,6 +165,136 @@ interface HttpForgePostman {
     getResponseCookie(name: string): Record<string, any> | null;
 }
 
+interface HttpForgeExpectChain {
+    // Internal state
+    _value: any;
+    _negated: boolean;
+    _deep: boolean;
+
+    // Language-chain properties (no-ops for readability)
+    to: HttpForgeExpectChain;
+    be: HttpForgeExpectChain;
+    been: HttpForgeExpectChain;
+    is: HttpForgeExpectChain;
+    that: HttpForgeExpectChain;
+    which: HttpForgeExpectChain;
+    and: HttpForgeExpectChain;
+    has: HttpForgeExpectChain;
+    have: HttpForgeExpectChain;
+    with: HttpForgeExpectChain;
+    at: HttpForgeExpectChain;
+    of: HttpForgeExpectChain;
+    same: HttpForgeExpectChain;
+    but: HttpForgeExpectChain;
+    does: HttpForgeExpectChain;
+    still: HttpForgeExpectChain;
+    also: HttpForgeExpectChain;
+
+    // Chain modifiers / flags
+    not: HttpForgeExpectChain;
+    deep: HttpForgeExpectChain;
+    nested: HttpForgeExpectChain;
+    own: HttpForgeExpectChain;
+    ordered: HttpForgeExpectChain;
+    any: HttpForgeExpectChain;
+    all: HttpForgeExpectChain;
+    itself: HttpForgeExpectChain;
+
+    // Type / existence / state getters
+    ok: HttpForgeExpectChain;
+    true: HttpForgeExpectChain;
+    false: HttpForgeExpectChain;
+    null: HttpForgeExpectChain;
+    undefined: HttpForgeExpectChain;
+    NaN: HttpForgeExpectChain;
+    exist: HttpForgeExpectChain;
+    exists: HttpForgeExpectChain;
+    empty: HttpForgeExpectChain;
+    arguments: HttpForgeExpectChain;
+    Arguments: HttpForgeExpectChain;
+    extensible: HttpForgeExpectChain;
+    sealed: HttpForgeExpectChain;
+    frozen: HttpForgeExpectChain;
+    finite: HttpForgeExpectChain;
+
+    // Core assertion methods — Equality
+    equal(expected: any): HttpForgeExpectChain;
+    eq(expected: any): HttpForgeExpectChain;
+    equals(expected: any): HttpForgeExpectChain;
+    eql(expected: any): HttpForgeExpectChain;
+    eqls(expected: any): HttpForgeExpectChain;
+
+    // Membership / inclusion
+    include(value: any): HttpForgeExpectChain;
+    includes(value: any): HttpForgeExpectChain;
+    contain(value: any): HttpForgeExpectChain;
+    contains(value: any): HttpForgeExpectChain;
+    oneOf(values: any[]): HttpForgeExpectChain;
+
+    // Object shape
+    property(name: string, value?: any): HttpForgeExpectChain;
+    ownPropertyDescriptor(name: string, descriptor?: PropertyDescriptor): HttpForgeExpectChain;
+    haveOwnPropertyDescriptor(name: string, descriptor?: PropertyDescriptor): HttpForgeExpectChain;
+    keys(...args: any[]): HttpForgeExpectChain;
+    key(...args: any[]): HttpForgeExpectChain;
+    members(arr: any[]): HttpForgeExpectChain;
+
+    // String / pattern
+    string(substr: string): HttpForgeExpectChain;
+    match(pattern: RegExp): HttpForgeExpectChain;
+    matches(pattern: RegExp): HttpForgeExpectChain;
+
+    // Type check
+    a(type: string): HttpForgeExpectChain;
+    an(type: string): HttpForgeExpectChain;
+
+    // Size
+    length(len: number): HttpForgeExpectChain;
+    lengthOf(len: number): HttpForgeExpectChain;
+
+    // Predicate
+    satisfy(matcher: (value: any) => any): HttpForgeExpectChain;
+    satisfies(matcher: (value: any) => any): HttpForgeExpectChain;
+
+    // Postman-specific
+    jsonSchema(schema: any): HttpForgeExpectChain;
+
+    // Numeric / range
+    above(num: number): HttpForgeExpectChain;
+    gt(num: number): HttpForgeExpectChain;
+    greaterThan(num: number): HttpForgeExpectChain;
+    least(num: number): HttpForgeExpectChain;
+    gte(num: number): HttpForgeExpectChain;
+    greaterThanOrEqual(num: number): HttpForgeExpectChain;
+    below(num: number): HttpForgeExpectChain;
+    lt(num: number): HttpForgeExpectChain;
+    lessThan(num: number): HttpForgeExpectChain;
+    most(num: number): HttpForgeExpectChain;
+    lte(num: number): HttpForgeExpectChain;
+    lessThanOrEqual(num: number): HttpForgeExpectChain;
+    within(start: number, end: number): HttpForgeExpectChain;
+    closeTo(expected: number, delta: number): HttpForgeExpectChain;
+    approximately(expected: number, delta: number): HttpForgeExpectChain;
+
+    // Instance / function behavior
+    instanceOf(constructor: Function): HttpForgeExpectChain;
+    instanceof(constructor: Function): HttpForgeExpectChain;
+    throw(...args: any[]): HttpForgeExpectChain;
+    throws(...args: any[]): HttpForgeExpectChain;
+    Throw(...args: any[]): HttpForgeExpectChain;
+    respondTo(method: string): HttpForgeExpectChain;
+    respondsTo(method: string): HttpForgeExpectChain;
+
+    // State-change assertions (must wrap a function)
+    change(subject: any, prop?: string): HttpForgeExpectChain;
+    changes(subject: any, prop?: string): HttpForgeExpectChain;
+    increase(subject: any, prop?: string): HttpForgeExpectChain;
+    increases(subject: any, prop?: string): HttpForgeExpectChain;
+    decrease(subject: any, prop?: string): HttpForgeExpectChain;
+    decreases(subject: any, prop?: string): HttpForgeExpectChain;
+    by(delta: number): HttpForgeExpectChain;
+}
+
 interface HttpForgePm {
     request: HttpForgeRequest;
     response: HttpForgeResponse;
@@ -155,18 +318,7 @@ interface HttpForgePm {
         };
     };
     test: HttpForgeTestFn;
-    expect(value: any): {
-        to: {
-            equal(expected: any): any;
-            eql(expected: any): any;
-            have: {
-                property(name: string, value?: any): any;
-                jsonSchema(schema: any): any;
-            };
-            be: { ok: any; true: any; false: any; null: any; empty: any };
-            not: any;
-        };
-    };
+    expect: ((value: any) => HttpForgeExpectChain) & { fail(message?: string, ...args: any[]): never };
     info: {
         eventName: string;
         requestName: string;
