@@ -695,3 +695,8 @@ export function createExpectChain(value: any): ExpectChain {
 
     return chain;
 }
+
+// Postman-compatible: pm.expect.fail(message) throws an assertion failure.
+(createExpectChain as any).fail = (message?: string, ..._args: any[]): never => {
+    throw new Error(message ?? 'expected failure');
+};
