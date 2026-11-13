@@ -12,6 +12,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `CollectionRequestExecutor.setIterationData()` and populated `pm.iterationData` / legacy `data` during collection and suite runs.
 - `getGlobalVariableLocals()` on `IEnvironmentConfigService`.
 - Backward-compatible `loadPersistedEnvironmentValues` / `usePersistentCookieJar` suite config fields.
+- MCP `list_documentation` and `get_documentation` tools for AI-driven doc discovery.
+- AGENTS.md template extracted to `templates/AGENTS.md` (reduced bundle size by ~26 KB).
+- AGENTS.md template now includes recipes for generating collections, test suites, environments, and assertions.
+- `http-forge-globals.d.ts` now declares full Chai-style expect chain, Postman-compatible globals (`execution`, `visualizer`, `sendRequest`, `postman`, `CryptoJS`, `moment`, `_`), and Node.js built-ins via `@types/node`.
+- Template `jsconfig.json` and `lib-package.json` now include `@types/node` and Postman-compatible libraries (lodash, moment, crypto-js, xml2js, tv4, ajv, cheerio).
+
+### Changed
+
+- `ensureForgeWorkspaceFiles` now auto-generates `.github/copilot-instructions.md` and `llms.txt` in user projects.
+- AGENTS.md template optimized for AI (264 lines, down from 574).
 
 ### Fixed
 
