@@ -166,6 +166,23 @@ export function ensureForgeWorkspaceFiles(forgeDir: string): void {
     fs.mkdirSync(libDir, { recursive: true });
     fs.mkdirSync(srcDir, { recursive: true });
 
+    // Workspace-level AI context files (write-once, never overwrite)
+    const workspaceRoot = path.dirname(forgeDir);
+    const githubDir = path.join(workspaceRoot, '.github');
+    fs.mkdirSync(githubDir, { recursive: true });
+    writeFileIfMissing(
+        path.join(githubDir, 'copilot-instructions.md'),
+        'See .http-forge/AGENTS.md for the full HTTP Forge AI guide (folder layout, schemas, scripts, assertions, test suites, environments, MCP tools).\\n' +
+        'Script API type definitions: .http-forge/assets/http-forge-globals.d.ts (pm, ctx, hf, postman, CryptoJS, moment, _, etc.)\\n' +
+        'Documentation: https://github.com/hsl1230/http-forge/tree/main/docs/user-guide\\n'
+    );
+    const projectName = path.basename(workspaceRoot) || 'HTTP Forge Project';
+    const llmsTemplate = readTemplateFile('llms.txt', '');
+    const llmsContent = llmsTemplate
+        ? llmsTemplate.replace('{{PROJECT_NAME}}', projectName)
+        : `# ${projectName}\\n\\n> HTTP testing workspace powered by HTTP Forge.\\n`;
+    writeFileIfMissing(path.join(workspaceRoot, 'llms.txt'), llmsContent);
+
     const configPath = path.join(forgeDir, 'http-forge.config.json');
     if (!fs.existsSync(configPath)) {
         const defaultConfig = {

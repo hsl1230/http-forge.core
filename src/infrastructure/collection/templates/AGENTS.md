@@ -215,6 +215,54 @@ pm.test('Has required fields', () => {
 
 ---
 
+## Recipes (step-by-step)
+
+### Generate a collection from an OpenAPI spec
+1. `http-forge import openapi spec.yaml --collection "My API"` (or MCP `scaffold_collection_from_openapi`)
+2. Review generated requests in `assets/collections/{slug}/`
+3. Run: `http-forge run collection "My API" --env dev --json`
+
+### Generate tests for a discovered backend
+1. `http-forge discover --path ./backend --output json` (see endpoints)
+2. `http-forge qa --path ./backend --collection "My API" --base-url http://localhost:3000` (one-shot: discover → generate → run → report)
+3. Or step by step: `http-forge generate-suite --path ./backend --collection "My API" --run`
+4. Review generated suites in `assets/suites/`, refine assertions
+
+### Generate a collection from natural language (AI)
+1. MCP: `design_api_from_intent(intent: "I need a shopping cart with products and checkout")`
+2. Review the designed OpenAPI spec + collection + suite
+3. Pass `apply: true` to persist the suite and byproducts
+4. Or CLI: `http-forge architect "I need a shopping cart" --apply`
+
+### Create an environment
+1. Create `assets/environments/dev.json` with `{ "name": "dev", "variables": { "baseUrl": "http://localhost:3000" } }`
+2. Or use MCP: `create_environment(name: "dev")` then `set_environment_variable`
+3. Use `{{baseUrl}}` in requests; reference with `--env dev`
+
+### Write assertions for a request
+1. Use MCP `suggest_assertions(collection, request)` for AI-generated assertions
+2. Or write manually in `post-response.js`:
+```javascript
+pm.test('Status is 200', () => pm.response.to.have.status(200));
+pm.test('Has id', () => pm.expect(pm.response.json()).to.have.property('id'));
+```
+3. Use `pm.response.json()` to parse, `pm.expect().to.equal()` for values
+
+### Fix a failing request
+1. Run: `http-forge run request <name> --collection <ref> --json`
+2. Check status, headers, body in output
+3. MCP: `explain_failure` for AI root-cause analysis
+4. MCP: `heal_assertions` to auto-fix broken assertions
+5. Fix and re-run
+
+### Generate a test suite from discovered endpoints
+1. `http-forge generate-suite --path ./backend --collection "My API"`
+2. Review `assets/suites/{name}.suite.json`
+3. Run: `http-forge run suite <name> --json`
+4. Add assertions to request `post-response.js` files
+
+---
+
 ## How AI Should Run Tests
 
 ### Decision: CLI vs MCP

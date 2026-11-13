@@ -199,6 +199,9 @@ export const GENERIC_TOOL_NAMES = {
   unsetEnvironmentVariable: 'unset_environment_variable',
   setGlobalVariable: 'set_global_variable',
   getGlobals: 'get_globals',
+  // ── Documentation ──────────────────────────────────────────────────────
+  listDocumentation: 'list_documentation',
+  getDocumentation: 'get_documentation',
   // ── AI-native tools ────────────────────────────────────────────────────
   scaffoldCollectionFromOpenApi: 'scaffold_collection_from_openapi',
   suggestAssertions: 'suggest_assertions',
@@ -1225,7 +1228,8 @@ export function buildGenericTools(
       description:
         'Analyse the last execution history for a request and suggest pm.test() assertions to add to its post-response script. ' +
         'Covers status code, response time, required JSON fields, Content-Type header, and schema conformance. ' +
-        'Returns an array of ready-to-paste JavaScript test snippets and a rationale for each.',
+        'Returns an array of ready-to-paste JavaScript test snippets and a rationale for each. ' +
+        'Example: pm.test("Status is 200", () => pm.response.to.have.status(200)); pm.test("Has id", () => pm.expect(pm.response.json()[0]).to.have.property("id"));',
       inputSchema: {
         type: 'object',
         properties: {
@@ -1674,6 +1678,35 @@ export function buildGenericTools(
         required: ['collection', 'request'],
       },
       annotations: { readOnlyHint: true },
+    },
+    {
+      name: `${prefix}${GENERIC_TOOL_NAMES.listDocumentation}`,
+      description:
+        'List available HTTP Forge documentation topics. Returns topic names, titles, and one-line summaries. ' +
+        'Call this first to discover what documentation exists, then use get_documentation to read a specific topic.\n\n' +
+        'Topics include: scripts-assertions, postman-compatibility, environments-variables, collections-requests, ' +
+        'test-suites, template-syntax, mcp-server, custom-modules, troubleshooting, getting-started, configuration.',
+      inputSchema: { type: 'object', properties: {} },
+      annotations: { readOnlyHint: true },
+    },
+    {
+      name: `${prefix}${GENERIC_TOOL_NAMES.getDocumentation}`,
+      description:
+        'Fetch the full content of an HTTP Forge documentation topic by name. ' +
+        'Use list_documentation first to discover available topics.\n\n' +
+        'Example: get_documentation(topic: "scripts-assertions") returns the full scripts & assertions guide ' +
+        'including the pm.test/expect chain API reference, assertion patterns, and data-driven testing.\n\n' +
+        'Available topics: scripts-assertions, postman-compatibility, postman-compatibility-matrix, ' +
+        'environments-variables, collections-requests, test-suites, template-syntax, mcp-server, ' +
+        'custom-modules, troubleshooting, getting-started, configuration.',
+      inputSchema: {
+        type: 'object',
+        properties: {
+          topic: { type: 'string', description: 'Documentation topic name (from list_documentation). E.g. "scripts-assertions", "postman-compatibility", "environments-variables".' },
+        },
+        required: ['topic'],
+      },
+      annotations: { readOnlyHint: true, idempotentHint: true },
     },
   ];
 }

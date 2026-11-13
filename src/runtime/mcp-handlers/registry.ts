@@ -9,6 +9,7 @@
 import { GenericToolName } from '../mcp-tool-schemas';
 import { aiHandlers } from './ai';
 import { collectionHandlers } from './collection';
+import { documentationHandlers } from './documentation';
 import { discoveryHandlers } from './discovery';
 import { environmentHandlers } from './environment';
 import { environmentManagementHandlers } from './environment-management';
@@ -34,6 +35,7 @@ const ALL_HANDLERS: McpToolHandler[] = [
   ...suiteHandlers,
   ...environmentManagementHandlers,
   ...aiHandlers,
+  ...documentationHandlers,
 ];
 
 function buildRegistry(): Map<GenericToolName, McpToolHandler> {

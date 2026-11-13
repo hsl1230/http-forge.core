@@ -1,0 +1,23 @@
+# {{PROJECT_NAME}}
+
+> HTTP testing workspace powered by HTTP Forge.
+
+## AI Context
+- Agent Guide: .http-forge/AGENTS.md (full reference for AI assistants)
+- Script API: .http-forge/assets/http-forge-globals.d.ts (pm, ctx, hf, postman, etc.)
+- Full docs: https://github.com/hsl1230/http-forge/tree/main/docs/user-guide
+
+## Key concepts
+- Collections, requests, folders, environments, scripts (pre-request/post-response)
+- Template syntax: {{variable}}, {{$guid}}, {{value | upper | trim}}
+- Script API: pm/ctx/hf, pm.test(), pm.expect() (Chai-style), pm.response, pm.request
+- Postman-compatible: pm.sendRequest, pm.setNextRequest, postman.* legacy globals
+- MCP server for AI-driven testing
+- Test suites with control flow (if/for/while/switch)
+
+## Quick reference
+- Run collection: http-forge run collection <name> --env <env> --json
+- Run suite: http-forge run suite <name> --json
+- Discover endpoints: http-forge discover --path <project>
+- Generate tests: http-forge qa --path <project> --collection <ref> --base-url <url>
+- Design API: http-forge architect "intent" --apply

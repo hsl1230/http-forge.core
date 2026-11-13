@@ -17,6 +17,8 @@ export interface McpDispatchServices {
   environmentConfig: import('../../types/environment-config').IEnvironmentConfigService;
   /** Absolute path to the workspace folder — used by AI-native tools. */
   workspaceFolder?: string;
+  /** Absolute path to bundled documentation (e.g. extension resources/docs) — used by documentation tools. */
+  docsPath?: string;
   /**
    * Optional AI provider. When supplied, AI-flavoured tools (e.g. assertion
    * suggestion, failure explanation) call a real LLM and fall back to their
