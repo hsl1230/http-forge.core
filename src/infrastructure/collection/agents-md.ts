@@ -185,8 +185,8 @@ export function ensureForgeWorkspaceFiles(forgeDir: string): void {
     }
 
     writeFileIfMissing(path.join(assetsDir, 'http-forge-globals.d.ts'), readTemplateFile('http-forge-globals.d.ts', 'declare const pm: any;\ndeclare const ctx: any;\ndeclare const hf: any;\n'));
-    writeFileIfMissing(path.join(assetsDir, 'jsconfig.json'), readTemplateFile('jsconfig.json', JSON.stringify({ compilerOptions: { target: 'ES2020', module: 'commonjs', allowJs: true, checkJs: false }, include: ['**/*.js', '**/*.d.ts'], exclude: ['lib/**', 'node_modules/**'] }, null, 2) + '\\n'));
-    writeFileIfMissing(path.join(libDir, 'package.json'), readTemplateFile('lib-package.json', JSON.stringify({ name: 'lib', version: '1.0.0', main: 'index.js', scripts: { test: 'node --test' }, author: '', license: 'ISC', description: '', dependencies: { yaml: '^2.8.2' } }, null, 2) + '\\n'));
+    writeFileIfMissing(path.join(assetsDir, 'jsconfig.json'), readTemplateFile('jsconfig.json', JSON.stringify({ compilerOptions: { target: 'ES2020', module: 'commonjs', allowJs: true, checkJs: false, types: ['node'], typeRoots: ['./lib/node_modules/@types'] }, include: ['**/*.js', '**/*.d.ts'], exclude: ['lib/**', 'node_modules/**'] }, null, 2) + '\\n'));
+    writeFileIfMissing(path.join(libDir, 'package.json'), readTemplateFile('lib-package.json', JSON.stringify({ name: 'lib', version: '1.0.0', main: 'index.js', scripts: { test: 'node --test' }, author: '', license: 'ISC', description: '', dependencies: { yaml: '^2.8.2' }, devDependencies: { '@types/node': '^20.0.0' } }, null, 2) + '\\n'));
 }
 
 

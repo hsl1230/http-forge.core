@@ -297,6 +297,7 @@ async function buildSuggestAssertionsPrompt(
     `3. Content-Type header\n` +
     `4. Key response body fields (existence, type, value constraints)\n` +
     `5. Business logic validations specific to this endpoint\n\n` +
+    `Assertion API: pm.test(name,fn); pm.response.to.have.status(code)/header(n,v?)/body()/jsonBody()/jsonSchema(s); pm.response.to.be.ok/.success/.error/.clientError/.serverError; pm.expect(v).to.equal(x)/.eql(x)/.have.property(n,v?)/.have.jsonSchema(s)/.be.ok/.true/.false/.null/.empty/.not; pm.response.responseTime(ms),.json(),.text(),.getHeader(n),.cookies.get/one/has/toObject.\n\n` +
     `Use Chai-style assertions (\`pm.expect(...).to...\`). ` +
     `Output only the JavaScript code block, ready to paste into the post-response script.`;
 
