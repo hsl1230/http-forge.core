@@ -5,6 +5,23 @@ All notable changes to @http-forge/core will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## 1.0.4 - 2026-11-16
+
+### Added
+
+- Script debugging support: each script segment runs as its own `vm.Script` with an explicit `filename`, so file-based breakpoints and `debugger;` statements resolve to the collection/folder/request `scripts/*.js` file. Inline scripts use synthetic filenames.
+- `requestScriptSources(scripts, phase)` helper builds `ScriptSource[]` from a `RequestScripts` object, preferring the absolute path recorded when the script was loaded from disk.
+- `CollectionScripts` now carries `preRequestPath`/`postResponsePath`, and `RequestExecutor` executes collection/folder/request scripts with their real filenames instead of one synthetic name.
+- `AGENTS.md` template now includes a "Debugging Scripts" section with step-by-step guide.
+- `http-forge-globals.d.ts` now declares full Chai-style expect chain (60+ methods), Postman-compatible globals (`execution`, `visualizer`, `sendRequest`, `postman`, `CryptoJS`, `moment`, `_`), and Node.js built-ins via `@types/node`.
+
+### Changed
+
+- **Breaking:** `IRequestScriptSession.executePreRequest` / `executePostResponse` now accept `ScriptSource | ScriptSource[]` (`{ code, filename }`) instead of `string | string[]`. `filename` is required so every executed segment has a debugger source name; use `toScriptSources(code, name)` for inline scripts.
+- `writeScriptsToDir` now records `preRequestPath`/`postResponsePath` on the scripts object it writes (and clears stale paths when a script is removed), so collection/folder/request scripts are debug-ready immediately after a save without a reload. `FolderCollectionStore.saveScripts` writes the caller's object directly.
+- `ensureForgeWorkspaceFiles` now auto-generates `.github/copilot-instructions.md` and `llms.txt` in user projects.
+- `http-forge-globals.d.ts` extracted accuracy improvements: `status` is string, `response.cookies` is CookieList, `pm.cookies` methods corrected, `pm.test` includes `.skip`/`.fail`/`.index()`.
+
 ## 1.0.3 - 2026-11-09
 
 ### Added

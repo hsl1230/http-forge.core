@@ -183,6 +183,16 @@ export interface IScriptExecutor {
 }
 
 /**
+ * A script segment with its source code and filename for debugging.
+ * Each segment is executed as its own `vm.Script` so file-based breakpoints
+ * resolve to the file the user opened. Inline scripts use a synthetic filename.
+ */
+export interface ScriptSource {
+    code: string;
+    filename: string;
+}
+
+/**
  * Request Script Session Interface
  * Represents a shared VM context for a single request's pre-request and post-response scripts
  * JavaScript variables declared in pre-request will be accessible in post-response
@@ -191,12 +201,12 @@ export interface IRequestScriptSession {
     /**
      * Execute pre-request scripts in the shared session
      */
-    executePreRequest(script: string | string[]): Promise<PreRequestScriptResult>;
+    executePreRequest(script: ScriptSource | ScriptSource[]): Promise<PreRequestScriptResult>;
 
     /**
      * Update the session with response data and execute post-response scripts
      */
-    executePostResponse(script: string | string[], responseContext: ResponseContext): Promise<PostResponseScriptResult>;
+    executePostResponse(script: ScriptSource | ScriptSource[], responseContext: ResponseContext): Promise<PostResponseScriptResult>;
 
     /**
      * Clean up the session (optional - for resource management)

@@ -17,17 +17,30 @@ import {
     PostResponseScriptResult,
     PreRequestScriptContext,
     PreRequestScriptResult,
-    ResponseContext
+    ResponseContext,
+    ScriptSource
 } from './interfaces';
 import { createRequestObject } from './request-object-factory';
 import { createExpectChain, createResponseObject } from './script-factories';
 import {
-    concatenateScripts,
     ConsoleMessage,
     createTestFunction,
     formatConsoleOutput,
     hasChanged
 } from './script-utils';
+
+/** Normalize script input into { code, filename } segments. */
+function normalizeScriptSegments(
+    script: ScriptSource | ScriptSource[],
+    defaultFilename?: string
+): Array<{ code: string; filename: string }> {
+    const def = defaultFilename || 'script.js';
+    const list = Array.isArray(script) ? script : [script];
+    return list.map((s) => ({
+        code: s.code,
+        filename: s.filename || def
+    }));
+}
 
 /**
  * Dependencies injected from ScriptExecutor
@@ -511,10 +524,13 @@ export class RequestScriptSession implements IRequestScriptSession {
     /**
      * Execute pre-request scripts in the shared session
      */
-    async executePreRequest(script: string | string[]): Promise<PreRequestScriptResult> {
-        const combinedScript = concatenateScripts(script, this.deps.isolateScripts);
-        
-        if (!combinedScript || !combinedScript.trim()) {
+    async executePreRequest(script: ScriptSource | ScriptSource[]): Promise<PreRequestScriptResult> {
+        // Normalize input into { code, filename } segments. Each segment is run
+        // as a separate vm.Script so the debugger can resolve file-based
+        // breakpoints to the correct source file.
+        const segments = normalizeScriptSegments(script, 'pre-request.js');
+        const runnable = segments.filter((s) => s.code && s.code.trim());
+        if (runnable.length === 0) {
             return { success: true };
         }
 
@@ -526,16 +542,28 @@ export class RequestScriptSession implements IRequestScriptSession {
             // pre-request scripts (request, environment, globals, data, iteration).
             this.injectLegacyGlobals('prerequest');
 
-            // Pre-resolve {{}} templates in script source (Postman-compatible)
-            const resolvedScript = this.ctx.variables.replaceIn(combinedScript);
-
             const scriptTimeoutMs = this.deps.scriptTimeoutMs ?? 5000;
 
-            // Run pre-request scripts in the shared VM context
-            const runResult = vm.runInContext(resolvedScript, this.vmContext!, { timeout: scriptTimeoutMs });
-            // In isolated mode the program is an async IIFE — await its completion.
-            if (this.deps.isolateScripts && runResult && typeof (runResult as any).then === 'function') {
-                await runResult;
+            // Run each script segment as a separate VM script so the debugger can
+            // resolve file-based breakpoints to the correct source file.
+            for (const segment of runnable) {
+                // Stop if a previous segment requested skipRequest
+                if (this._skipRequest) break;
+
+                const resolvedCode = this.ctx.variables.replaceIn(segment.code);
+
+                // In isolated mode, wrap in an async IIFE
+                const codeToRun = this.deps.isolateScripts
+                    ? `(async () => {\n/* --- script --- */\n${resolvedCode}\n})();`
+                    : resolvedCode;
+
+                const compiledScript = new vm.Script(codeToRun, { filename: segment.filename });
+                const runResult = compiledScript.runInContext(this.vmContext!, { timeout: scriptTimeoutMs });
+
+                // In isolated mode the program is an async IIFE — await its completion.
+                if (this.deps.isolateScripts && runResult && typeof (runResult as any).then === 'function') {
+                    await runResult;
+                }
             }
 
             // Keep the sandbox alive until pending timers / un-awaited Promises settle
@@ -601,10 +629,10 @@ export class RequestScriptSession implements IRequestScriptSession {
      * Execute post-response scripts in the shared session
      * The response data is injected into the existing VM context
      */
-    async executePostResponse(script: string | string[], responseContext: ResponseContext): Promise<PostResponseScriptResult> {
-        const combinedScript = concatenateScripts(script, this.deps.isolateScripts);
-        
-        if (!combinedScript || !combinedScript.trim()) {
+    async executePostResponse(script: ScriptSource | ScriptSource[], responseContext: ResponseContext): Promise<PostResponseScriptResult> {
+        const segments = normalizeScriptSegments(script, 'post-response.js');
+        const runnable = segments.filter((s) => s.code && s.code.trim());
+        if (runnable.length === 0) {
             return { testResults: [], consoleOutput: [] };
         }
 
@@ -628,16 +656,25 @@ export class RequestScriptSession implements IRequestScriptSession {
             // postman.getResponseHeader()/getResponseCookie() helpers.
             this.injectLegacyGlobals('test', responseContext);
 
-            // Pre-resolve {{}} templates in script source (Postman-compatible)
-            const resolvedScript = this.ctx.variables.replaceIn(combinedScript);
-
             const scriptTimeoutMs = this.deps.scriptTimeoutMs ?? 5000;
 
-            // Run post-response scripts in the shared VM context
-            const runResult = vm.runInContext(resolvedScript, this.vmContext!, { timeout: scriptTimeoutMs });
-            // In isolated mode the program is an async IIFE — await its completion.
-            if (this.deps.isolateScripts && runResult && typeof (runResult as any).then === 'function') {
-                await runResult;
+            // Run each script segment as a separate VM script so the debugger can
+            // resolve file-based breakpoints to the correct source file.
+            for (const segment of runnable) {
+                const resolvedCode = this.ctx.variables.replaceIn(segment.code);
+
+                // In isolated mode, wrap in an async IIFE
+                const codeToRun = this.deps.isolateScripts
+                    ? `(async () => {\n/* --- script --- */\n${resolvedCode}\n})();`
+                    : resolvedCode;
+
+                const compiledScript = new vm.Script(codeToRun, { filename: segment.filename });
+                const runResult = compiledScript.runInContext(this.vmContext!, { timeout: scriptTimeoutMs });
+
+                // In isolated mode the program is an async IIFE — await its completion.
+                if (this.deps.isolateScripts && runResult && typeof (runResult as any).then === 'function') {
+                    await runResult;
+                }
             }
 
             // Wait for any async test functions to complete

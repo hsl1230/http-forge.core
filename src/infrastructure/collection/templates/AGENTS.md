@@ -102,7 +102,7 @@ Drop markdown files into `.http-forge/knowledge/` (any depth). All `*.md` files 
 
 ---
 
-## Code & Docs in Same Workspace
+## Same-Workspace Code and Docs — Read Before Generating
 
 Before generating tests, read the workspace for requirements:
 1. `README.md`, `docs/**`, `openapi.*` — contracts and ACs.
@@ -305,6 +305,42 @@ Add `--include report` for HTML report. Add `--exit-code` for CI.
 - MCP: pass `include: ["report"]`, open `report.uri`
 
 ---
+
+## Debugging Scripts
+
+HTTP Forge runs scripts in a Node.js VM context inside the VS Code extension host. To debug:
+
+### Option A: Launch VS Code with --inspect (recommended)
+
+1. **Close all VS Code windows.**
+2. **Launch from terminal:**
+   - Windows: `code --inspect-extensions=9229 "C:\path\to\your\project"`
+   - Mac/Linux: `code --inspect-extensions=9229 /path/to/your/project`
+3. In VS Code, open Run & Debug (`Ctrl+Shift+D`), click the gear icon, select "Node.js: Attach", set port to `9229`.
+4. Press **F5** to attach the debugger.
+5. Open your script file (e.g. `scripts/post-response.js`), set a breakpoint (F9) or insert `debugger;`.
+6. Run a collection/suite from the Command Palette or Test Suite panel.
+7. The debugger pauses at the breakpoint. Inspect variables, step through code.
+
+### Option B: Attach to a running VS Code
+
+1. Open VS Code normally with your project.
+2. `Ctrl+Shift+P` → "Debug: Attach to Node Process" → select the "extensionHost" process.
+3. Set breakpoints in your script files.
+4. Run a collection/suite — debugger pauses at breakpoints.
+
+### Option C: No debugger (console.log + Test Suite panel)
+
+1. Insert `console.log('debug:', JSON.stringify(pm.response.json()))` in your script.
+2. View output in `Help → Toggle Developer Tools → Console`.
+3. Or click a result row in the Test Suite panel for full request/response details.
+4. Or use MCP `explain_failure` for AI-powered root cause analysis.
+
+### Notes
+- Breakpoints only work on **script files on disk** (`scripts/pre-request.js`, `scripts/post-response.js`), not on webview-edited scripts (save first).
+- In collection, suite, and single-request runs, each script level (collection, folder, request) runs as a separate VM script with the file path it was loaded from, so breakpoints map to the correct file.
+- Flow-node scripts and other inline scripts (e.g. a script typed into a webview without saving) use a synthetic filename — use `debugger;` statements for precise placement.
+- Without a debugger attached, `debugger;` statements are silently ignored.
 
 ## Documentation
 

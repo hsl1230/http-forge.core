@@ -5,9 +5,10 @@
  * These are stateless helper functions with no side effects
  */
 
-import { TestAssertion } from '../../types/types';
+import { RequestScripts, TestAssertion } from '../../types/types';
 import { CookieUtils } from '../cookie/cookie-utils';
 import { Cookie } from '../cookie/interfaces';
+import type { ScriptSource } from './interfaces';
 
 /**
  * Console message structure for script output
@@ -15,6 +16,36 @@ import { Cookie } from '../cookie/interfaces';
 export interface ConsoleMessage {
     level: 'log' | 'info' | 'warn' | 'error';
     args: any[];
+}
+
+/**
+ * Convert string | string[] to ScriptSource[] for execution.
+ * Inline scripts (tests, flow nodes, webview drafts) have no real file, so they
+ * get a synthetic filename; file-based callers should build ScriptSource
+ * objects with the real absolute path instead.
+ */
+export function toScriptSources(script: string | string[] | undefined | null, defaultFilename: string): ScriptSource[] {
+    if (!script) return [];
+    const list = typeof script === 'string' ? [script] : script;
+    return list.filter(s => s && s.trim()).map((code) => ({ code, filename: defaultFilename }));
+}
+
+/**
+ * Build the ScriptSource[] for one phase of a RequestScripts object.
+ *
+ * File-backed scripts carry the absolute path recorded by the loader
+ * (`preRequestPath` / `postResponsePath`), so breakpoints resolve to the file
+ * the user edited. Callers must not synthesize a filename when a real path is
+ * available; the synthetic fallback only covers inline/draft scripts.
+ */
+export function requestScriptSources(
+    scripts: RequestScripts | undefined,
+    phase: 'preRequest' | 'postResponse'
+): ScriptSource[] {
+    const code = scripts?.[phase];
+    const filename = (phase === 'preRequest' ? scripts?.preRequestPath : scripts?.postResponsePath)
+        || (phase === 'preRequest' ? 'pre-request.js' : 'post-response.js');
+    return toScriptSources(code, filename);
 }
 
 /**

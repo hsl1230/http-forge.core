@@ -282,14 +282,14 @@ export class SuiteExecutor {
       const session = container.scriptExecutor.createRequestSession(scriptContext);
       try {
         if (phase === 'post' && options?.response) {
-          const postResult = await session.executePostResponse(sourceCode, options.response);
+          const postResult = await session.executePostResponse([{ code: sourceCode, filename: 'post-response.js' }], options.response);
           const scriptVariables = postResult.nonGlobalVariables ?? postResult.modifiedVariables;
           if (scriptVariables && typeof scriptVariables === 'object') {
             // Replace the flow snapshot so unset/clear operations do not leave stale keys.
             flowState.vars = { ...scriptVariables };
           }
         } else {
-          const preResult = await session.executePreRequest(sourceCode);
+          const preResult = await session.executePreRequest([{ code: sourceCode, filename: 'pre-request.js' }]);
           if (!preResult.success) {
             throw new Error(preResult.error || 'Script execution failed');
           }

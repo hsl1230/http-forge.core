@@ -834,7 +834,10 @@ export class FolderCollectionStore implements ICollectionStore {
             throw new Error(`Item ${itemId} not found in collection ${collectionId}`);
         }
 
-        await this.saveScriptsToDir(path.join(itemPath, SCRIPTS_DIR), scripts);
+        // `writeScriptsToDir` fills the path fields on the passed object, so the
+        // caller's in-memory scripts are debug-ready without a reload.
+        const scriptsDir = path.join(itemPath, SCRIPTS_DIR);
+        await this.saveScriptsToDir(scriptsDir, scripts);
 
         const item = this.findItemById(collection.items, itemId);
         if (item) {

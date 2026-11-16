@@ -62,6 +62,8 @@ export const SCRIPTS_DIR = 'scripts';
 export interface ScriptsData {
     preRequest?: string;
     postResponse?: string;
+    preRequestPath?: string;
+    postResponsePath?: string;
 }
 
 /**
@@ -78,11 +80,13 @@ export function readScriptsFromDir(scriptsPath: string): ScriptsData | undefined
     const preRequestPath = path.join(scriptsPath, SCRIPT_FILES.preRequest);
     if (fs.existsSync(preRequestPath)) {
         scripts.preRequest = fs.readFileSync(preRequestPath, 'utf-8');
+        scripts.preRequestPath = preRequestPath;
     }
 
     const postResponsePath = path.join(scriptsPath, SCRIPT_FILES.postResponse);
     if (fs.existsSync(postResponsePath)) {
         scripts.postResponse = fs.readFileSync(postResponsePath, 'utf-8');
+        scripts.postResponsePath = postResponsePath;
     }
 
     return Object.keys(scripts).length > 0 ? scripts : undefined;
@@ -91,6 +95,10 @@ export function readScriptsFromDir(scriptsPath: string): ScriptsData | undefined
 /**
  * Write scripts to a scripts/ directory.
  * If a script is empty/undefined, the corresponding file is deleted.
+ *
+ * The passed object is updated with the absolute file paths (and stale paths
+ * are cleared) so in-memory objects stay consistent with disk immediately
+ * after a save, mirroring `readScriptsFromDir` at load time.
  */
 export async function writeScriptsToDir(scriptsPath: string, scripts: ScriptsData): Promise<void> {
     await fs.promises.mkdir(scriptsPath, { recursive: true });
@@ -98,15 +106,23 @@ export async function writeScriptsToDir(scriptsPath: string, scripts: ScriptsDat
     const preRequestFile = path.join(scriptsPath, SCRIPT_FILES.preRequest);
     if (scripts.preRequest) {
         await fs.promises.writeFile(preRequestFile, scripts.preRequest, 'utf-8');
-    } else if (fs.existsSync(preRequestFile)) {
-        await fs.promises.unlink(preRequestFile);
+        scripts.preRequestPath = preRequestFile;
+    } else {
+        scripts.preRequestPath = undefined;
+        if (fs.existsSync(preRequestFile)) {
+            await fs.promises.unlink(preRequestFile);
+        }
     }
 
     const postResponseFile = path.join(scriptsPath, SCRIPT_FILES.postResponse);
     if (scripts.postResponse) {
         await fs.promises.writeFile(postResponseFile, scripts.postResponse, 'utf-8');
-    } else if (fs.existsSync(postResponseFile)) {
-        await fs.promises.unlink(postResponseFile);
+        scripts.postResponsePath = postResponseFile;
+    } else {
+        scripts.postResponsePath = undefined;
+        if (fs.existsSync(postResponseFile)) {
+            await fs.promises.unlink(postResponseFile);
+        }
     }
 }
 

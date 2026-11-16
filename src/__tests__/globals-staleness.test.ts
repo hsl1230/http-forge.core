@@ -123,11 +123,11 @@ describe('Layer 2 – ScriptExecutor: postman.setGlobalVariable fires onGlobalsC
         const session = executor.createRequestSession(ctx);
 
         // Simulate pre-request (no-op script)
-        await session.executePreRequest('// no-op');
+        await session.executePreRequest([{ code: '// no-op', filename: 'pre-request.js' }]);
 
         // Post-response script uses the legacy postman.setGlobalVariable API
-        await session.executePostResponse(
-            `postman.setGlobalVariable('token', 'new-token');`,
+        await session.executePostResponse([{ code:
+            `postman.setGlobalVariable('token', 'new-token');`, filename: 'post-response.js' }],
             makeResponseContext()
         );
 
@@ -140,9 +140,9 @@ describe('Layer 2 – ScriptExecutor: postman.setGlobalVariable fires onGlobalsC
         const ctx = makeContext(svc, { ...globals });
         const session = executor.createRequestSession(ctx);
 
-        await session.executePreRequest('// no-op');
-        await session.executePostResponse(
-            `pm.globals.set('token', 'pm-new-token');`,
+        await session.executePreRequest([{ code: '// no-op', filename: 'pre-request.js' }]);
+        await session.executePostResponse([{ code:
+            `pm.globals.set('token', 'pm-new-token');`, filename: 'post-response.js' }],
             makeResponseContext()
         );
 
@@ -169,9 +169,9 @@ describe('Layer 3 – Cross-request: globals from request A visible in request B
         const ctxA = makeContext(svc, { ...globalsA });
         const sessionA = executor.createRequestSession(ctxA);
 
-        await sessionA.executePreRequest('// no-op');
-        await sessionA.executePostResponse(
-            `postman.setGlobalVariable('token', 'new-token');`,
+        await sessionA.executePreRequest([{ code: '// no-op', filename: 'pre-request.js' }]);
+        await sessionA.executePostResponse([{ code:
+            `postman.setGlobalVariable('token', 'new-token');`, filename: 'post-response.js' }],
             makeResponseContext()
         );
 
@@ -193,11 +193,11 @@ describe('Layer 3 – Cross-request: globals from request A visible in request B
         const ctxA = makeContext(svc, { ...globalsA });
         const sessionA = executor.createRequestSession(ctxA);
 
-        await sessionA.executePreRequest('// no-op');
+        await sessionA.executePreRequest([{ code: '// no-op', filename: 'pre-request.js' }]);
         // Simulates extracting access_token from the response body
-        await sessionA.executePostResponse(
+        await sessionA.executePostResponse([{ code:
             `var body = JSON.parse(responseBody);
-             postman.setGlobalVariable('access_token', body.access_token);`,
+             postman.setGlobalVariable('access_token', body.access_token);`, filename: 'post-response.js' }],
             makeResponseContext()
         );
 
@@ -244,14 +244,14 @@ async function runSimulatedRequest(
         : `__capturedToken__ = pm.globals.get('token');`;
 
     // Run pre-request
-    await session.executePreRequest(wrappedPre);
+    await session.executePreRequest([{ code: wrappedPre, filename: 'pre-request.js' }]);
 
     // Extract captured value from the session's variable scope via globals.get
     capturedToken = (ctx as any).__capturedToken__;
 
     // Run post-response
     if (postScript) {
-        await session.executePostResponse(postScript, makeResponseContext());
+        await session.executePostResponse([{ code: postScript, filename: 'post-response.js' }],  makeResponseContext());
     }
 
     return { capturedToken };
@@ -272,9 +272,9 @@ describe('Layer 4 – 4-request chain: set → get → update → get', () => {
         const globals1 = svc.getGlobalVariables();
         const ctx1 = makeContext(svc, { ...globals1 });
         const session1 = executor.createRequestSession(ctx1);
-        await session1.executePreRequest('// no-op');
-        await session1.executePostResponse(
-            `postman.setGlobalVariable('token', 'token-1');`,
+        await session1.executePreRequest([{ code: '// no-op', filename: 'pre-request.js' }]);
+        await session1.executePostResponse([{ code:
+            `postman.setGlobalVariable('token', 'token-1');`, filename: 'post-response.js' }],
             makeResponseContext()
         );
 
@@ -284,9 +284,9 @@ describe('Layer 4 – 4-request chain: set → get → update → get', () => {
         const session2 = executor.createRequestSession(ctx2);
 
         // Use pm.variables.set to smuggle the global value out of the VM
-        const preResult2 = await session2.executePreRequest(`
+        const preResult2 = await session2.executePreRequest([{ code: `
             pm.variables.set('captured_token', pm.globals.get('token'));
-        `);
+        `, filename: 'pre-request.js' }]);
         // Read the value out via the service ({{token}} in request body)
         const resolvedInReq2 = svc.resolveVariables('{{token}}', 'dev');
 
@@ -298,9 +298,9 @@ describe('Layer 4 – 4-request chain: set → get → update → get', () => {
         const globals3 = svc.getGlobalVariables();
         const ctx3 = makeContext(svc, { ...globals3 });
         const session3 = executor.createRequestSession(ctx3);
-        await session3.executePreRequest('// no-op');
-        await session3.executePostResponse(
-            `postman.setGlobalVariable('token', 'token-3');`,
+        await session3.executePreRequest([{ code: '// no-op', filename: 'pre-request.js' }]);
+        await session3.executePostResponse([{ code:
+            `postman.setGlobalVariable('token', 'token-3');`, filename: 'post-response.js' }],
             makeResponseContext()
         );
 
@@ -314,9 +314,9 @@ describe('Layer 4 – 4-request chain: set → get → update → get', () => {
         // Also verify via a new session's pm.globals.get()
         const ctx4 = makeContext(svc, { ...globals4 });
         const session4 = executor.createRequestSession(ctx4);
-        const preResult4 = await session4.executePreRequest(`
+        const preResult4 = await session4.executePreRequest([{ code: `
             pm.variables.set('captured_token', pm.globals.get('token'));
-        `);
+        `, filename: 'pre-request.js' }]);
         expect(preResult4.nonGlobalVariables?.captured_token).toBe('token-3');  // pm.globals.get() in pre-request sees updated value
     });
 
@@ -329,9 +329,9 @@ describe('Layer 4 – 4-request chain: set → get → update → get', () => {
             const wGlobals = svc.getGlobalVariables();
             const wCtx = makeContext(svc, { ...wGlobals });
             const wSession = executor.createRequestSession(wCtx);
-            await wSession.executePreRequest('// no-op');
-            await wSession.executePostResponse(
-                `postman.setGlobalVariable('token', '${val}');`,
+            await wSession.executePreRequest([{ code: '// no-op', filename: 'pre-request.js' }]);
+            await wSession.executePostResponse([{ code:
+                `postman.setGlobalVariable('token', '${val}');`, filename: 'post-response.js' }],
                 makeResponseContext()
             );
 
@@ -384,9 +384,9 @@ describe('Layer 5 – static env-file value does not shadow runtime postman.setG
         const ctx = makeContext(svc, { ...globals });
         const session = executor.createRequestSession(ctx);
 
-        await session.executePreRequest('// no-op');
-        await session.executePostResponse(
-            `postman.setGlobalVariable('global_client_secret', 'fresh-oauth-code');`,
+        await session.executePreRequest([{ code: '// no-op', filename: 'pre-request.js' }]);
+        await session.executePostResponse([{ code:
+            `postman.setGlobalVariable('global_client_secret', 'fresh-oauth-code');`, filename: 'post-response.js' }],
             makeResponseContext()
         );
 
@@ -409,11 +409,11 @@ describe('Session VM behavior – shared within request, isolated across request
         const ctx = makeContext(svc, { ...svc.getGlobalVariables() });
         const session = executor.createRequestSession(ctx);
 
-        await session.executePreRequest('var __sharedCounter = 41;');
-        const postResult = await session.executePostResponse(
+        await session.executePreRequest([{ code: 'var __sharedCounter = 41;', filename: 'pre-request.js' }]);
+        const postResult = await session.executePostResponse([{ code:
             `pm.test('can read pre-request vm state', function () {
                 pm.expect(__sharedCounter).to.equal(41);
-            });`,
+            });`, filename: 'post-response.js' }],
             makeResponseContext()
         );
 
@@ -423,12 +423,12 @@ describe('Session VM behavior – shared within request, isolated across request
 
     it('JS globals do not leak between separate sessions', async () => {
         const sessionA = executor.createRequestSession(makeContext(svc, { ...svc.getGlobalVariables() }));
-        await sessionA.executePreRequest('var __onlyInSessionA = "set";');
+        await sessionA.executePreRequest([{ code: 'var __onlyInSessionA = "set";', filename: 'pre-request.js' }]);
 
         const sessionB = executor.createRequestSession(makeContext(svc, { ...svc.getGlobalVariables() }));
-        const preResultB = await sessionB.executePreRequest(
+        const preResultB = await sessionB.executePreRequest([{ code:
             'pm.variables.set("leak_check", typeof __onlyInSessionA);'
-        );
+        , filename: 'pre-request.js' }]);
 
         expect(preResultB.nonGlobalVariables?.leak_check).toBe('undefined');
     });
@@ -459,11 +459,11 @@ describe('Postman-compatible undefined / null variable rendering', () => {
         const ctx = makeContext(svc, { ...svc.getGlobalVariables() });
         const session = executor.createRequestSession(ctx);
 
-        const preResult = await session.executePreRequest(`
+        const preResult = await session.executePreRequest([{ code: `
             pm.globals.set('query', undefined);
             pm.variables.set('rendered', pm.variables.replaceIn('q={{query}}'));
             pm.variables.set('got_type', typeof pm.globals.get('query'));
-        `);
+        `, filename: 'pre-request.js' }]);
 
         // Renders empty (q=) — NOT the literal "undefined" and NOT the raw {{query}}
         expect(preResult.nonGlobalVariables?.rendered).toBe('q=');
@@ -475,11 +475,11 @@ describe('Postman-compatible undefined / null variable rendering', () => {
         const ctx = makeContext(svc, { ...svc.getGlobalVariables() });
         const session = executor.createRequestSession(ctx);
 
-        const preResult = await session.executePreRequest(`
+        const preResult = await session.executePreRequest([{ code: `
             pm.globals.set('query', null);
             pm.variables.set('rendered', pm.variables.replaceIn('q={{query}}'));
             pm.variables.set('got_is_null', pm.globals.get('query') === null ? 'NULL' : 'NOTNULL');
-        `);
+        `, filename: 'pre-request.js' }]);
 
         expect(preResult.nonGlobalVariables?.rendered).toBe('q=null');
         expect(preResult.nonGlobalVariables?.got_is_null).toBe('NULL');
@@ -489,10 +489,10 @@ describe('Postman-compatible undefined / null variable rendering', () => {
         const ctx = makeContext(svc, { ...svc.getGlobalVariables() });
         const session = executor.createRequestSession(ctx);
 
-        const preResult = await session.executePreRequest(`
+        const preResult = await session.executePreRequest([{ code: `
             pm.globals.set('query', 'undefined');
             pm.variables.set('rendered', pm.variables.replaceIn('q={{query}}'));
-        `);
+        `, filename: 'pre-request.js' }]);
 
         expect(preResult.nonGlobalVariables?.rendered).toBe('q=undefined');
     });
@@ -501,9 +501,9 @@ describe('Postman-compatible undefined / null variable rendering', () => {
         const ctx = makeContext(svc, { ...svc.getGlobalVariables() });
         const session = executor.createRequestSession(ctx);
 
-        const preResult = await session.executePreRequest(`
+        const preResult = await session.executePreRequest([{ code: `
             pm.variables.set('rendered', pm.variables.replaceIn('q={{nope}}'));
-        `);
+        `, filename: 'pre-request.js' }]);
 
         expect(preResult.nonGlobalVariables?.rendered).toBe('q={{nope}}');
     });
@@ -512,7 +512,7 @@ describe('Postman-compatible undefined / null variable rendering', () => {
         const ctx = makeContext(svc, { ...svc.getGlobalVariables() });
         const session = executor.createRequestSession(ctx);
 
-        await session.executePreRequest(`postman.setGlobalVariable('query', undefined);`);
+        await session.executePreRequest([{ code: `postman.setGlobalVariable('query', undefined);`, filename: 'pre-request.js' }]);
 
         // The env service (used for URL/body resolution) renders empty, not "undefined"
         expect(svc.resolveVariables('q={{query}}', 'dev')).toBe('q=');
@@ -522,7 +522,7 @@ describe('Postman-compatible undefined / null variable rendering', () => {
         const ctx = makeContext(svc, { ...svc.getGlobalVariables() });
         const session = executor.createRequestSession(ctx);
 
-        await session.executePreRequest(`postman.setGlobalVariable('query', null);`);
+        await session.executePreRequest([{ code: `postman.setGlobalVariable('query', null);`, filename: 'pre-request.js' }]);
 
         expect(svc.resolveVariables('q={{query}}', 'dev')).toBe('q=null');
     });

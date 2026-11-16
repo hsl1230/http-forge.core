@@ -128,7 +128,7 @@ export { createExpectChain, createResponseObject } from './infrastructure/script
 export type { ExpectChain, ResponseAssertions, ScriptResponse } from './infrastructure/script/script-factories';
 export {
     concatenateScripts, createTestFunction,
-    formatConsoleOutput, hasChanged, normalizeHeaders
+    formatConsoleOutput, hasChanged, normalizeHeaders, requestScriptSources
 } from './infrastructure/script/script-utils';
 export type { ConsoleMessage } from './infrastructure/script/script-utils';
 export { applyExtractionPlan, buildExtractionPlan, redactFullResponse, redactFullResultDetails, redactHeaders, redactHistoryEntry } from './infrastructure/security/sensitive-data-redactor';

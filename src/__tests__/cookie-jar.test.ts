@@ -244,15 +244,15 @@ describe('CookieJar', () => {
                         const executor = new ScriptExecutor();
                         const session = executor.createRequestSession(makeScriptContext(jar));
 
-                        await session.executePreRequest('// no-op');
-                        const result = await session.executePostResponse(`
+                        await session.executePreRequest([{ code: '// no-op', filename: 'pre-request.js' }]);
+                        const result = await session.executePostResponse([{ code: `
                                 const jar = pm.cookies.jar();
                                 jar.clear(pm.request.url, function (error) {
                                     if (error) {
                                         pm.test('clear callback has no error', function () { throw error; });
                                     }
                                 });
-                        `, makeResponseContext());
+                        `, filename: 'post-response.js' }],  makeResponseContext());
 
                         expect(result.testResults.every((test) => test.passed)).toBe(true);
                         expect(jar.has('session', 'example.com')).toBe(false);
@@ -263,8 +263,8 @@ describe('CookieJar', () => {
                         const executor = new ScriptExecutor();
                         const session = executor.createRequestSession(makeScriptContext(jar));
 
-                        await session.executePreRequest('// no-op');
-                        const result = await session.executePostResponse(`
+                        await session.executePreRequest([{ code: '// no-op', filename: 'pre-request.js' }]);
+                        const result = await session.executePostResponse([{ code: `
                                 const jar = pm.cookies.jar();
                                 jar.set(pm.request.url, 'session', 'abc123', function (error) {
                                     if (error) {
@@ -285,7 +285,7 @@ describe('CookieJar', () => {
                                         pm.test('unset callback has no error', function () { throw error; });
                                     }
                                 });
-                        `, makeResponseContext());
+                        `, filename: 'post-response.js' }],  makeResponseContext());
 
                         expect(result.testResults.every((test) => test.passed)).toBe(true);
                         expect(jar.has('session', 'example.com')).toBe(false);

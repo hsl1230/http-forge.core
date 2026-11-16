@@ -131,6 +131,10 @@ export interface UnifiedRequest {
 export interface CollectionScripts {
     preRequest?: string;
     postResponse?: string;
+    /** Absolute file path of pre-request.js (for debugging / source mapping). */
+    preRequestPath?: string;
+    /** Absolute file path of post-response.js (for debugging / source mapping). */
+    postResponsePath?: string;
 }
 
 /**
@@ -836,10 +840,7 @@ export interface RequestAuth {
 /**
  * Request scripts configuration
  */
-export interface RequestScripts {
-    preRequest?: string;
-    postResponse?: string;
-}
+export interface RequestScripts extends CollectionScripts {}
 
 /**
  * Collection request - the on-disk/storage format

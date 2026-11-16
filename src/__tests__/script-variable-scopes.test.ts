@@ -16,13 +16,13 @@ describe('script variable scope results', () => {
       info: { eventName: 'prerequest', requestName: 'Get users', requestId: 'r1' }
     });
 
-    const result = await session.executePreRequest(`
+    const result = await session.executePreRequest([{ code: `
       pm.collectionVariables.set('token', 'abc');
       pm.collectionVariables.unset('base');
       pm.variables.set('local', 'value');
       pm.environment.set('envVar', 'env-updated');
       pm.globals.set('globalVar', 'global-updated');
-    `);
+    `, filename: 'pre-request.js' }]);
 
     expect(result.success).toBe(true);
     expect(result.modifiedCollectionVariables).toEqual({ token: 'abc' });

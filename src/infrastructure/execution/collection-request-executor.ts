@@ -418,27 +418,39 @@ export class CollectionRequestExecutor implements ICollectionRequestExecutor {
     /**
      * Collect pre-request scripts in order: Collection → Folder(s) → Request
      */
-    private collectPreRequestScripts(request: ExecutionRequest): string[] {
-        const scripts: string[] = [];
+    private collectPreRequestScripts(request: ExecutionRequest): Array<{ code: string; filename: string }> {
+        const scripts: Array<{ code: string; filename: string }> = [];
 
         if (this.collectionScripts?.preRequest) {
-            scripts.push(this.collectionScripts.preRequest);
+            scripts.push({
+                code: this.collectionScripts.preRequest,
+                filename: this.collectionScripts.preRequestPath || 'collection/scripts/pre-request.js'
+            });
         }
 
         if (this.folderScriptsChain) {
             if (Array.isArray(this.folderScriptsChain)) {
                 for (const folderScripts of this.folderScriptsChain) {
                     if (folderScripts?.preRequest) {
-                        scripts.push(folderScripts.preRequest);
+                        scripts.push({
+                            code: folderScripts.preRequest,
+                            filename: folderScripts.preRequestPath || 'folder/scripts/pre-request.js'
+                        });
                     }
                 }
             } else if (this.folderScriptsChain.preRequest) {
-                scripts.push(this.folderScriptsChain.preRequest);
+                scripts.push({
+                    code: this.folderScriptsChain.preRequest,
+                    filename: this.folderScriptsChain.preRequestPath || 'folder/scripts/pre-request.js'
+                });
             }
         }
 
         if (request.scripts?.preRequest) {
-            scripts.push(request.scripts.preRequest);
+            scripts.push({
+                code: request.scripts.preRequest,
+                filename: request.scripts.preRequestPath || 'request/scripts/pre-request.js'
+            });
         }
 
         return scripts;
@@ -447,11 +459,14 @@ export class CollectionRequestExecutor implements ICollectionRequestExecutor {
     /**
      * Collect post-response scripts in order: Request → Folder(s) → Collection
      */
-    private collectPostResponseScripts(request: ExecutionRequest): string[] {
-        const scripts: string[] = [];
+    private collectPostResponseScripts(request: ExecutionRequest): Array<{ code: string; filename: string }> {
+        const scripts: Array<{ code: string; filename: string }> = [];
 
         if (request.scripts?.postResponse) {
-            scripts.push(request.scripts.postResponse);
+            scripts.push({
+                code: request.scripts.postResponse,
+                filename: request.scripts.postResponsePath || 'request/scripts/post-response.js'
+            });
         }
 
         if (this.folderScriptsChain) {
@@ -459,16 +474,25 @@ export class CollectionRequestExecutor implements ICollectionRequestExecutor {
                 const reversedChain = [...this.folderScriptsChain].reverse();
                 for (const folderScripts of reversedChain) {
                     if (folderScripts?.postResponse) {
-                        scripts.push(folderScripts.postResponse);
+                        scripts.push({
+                            code: folderScripts.postResponse,
+                            filename: folderScripts.postResponsePath || 'folder/scripts/post-response.js'
+                        });
                     }
                 }
             } else if (this.folderScriptsChain.postResponse) {
-                scripts.push(this.folderScriptsChain.postResponse);
+                scripts.push({
+                    code: this.folderScriptsChain.postResponse,
+                    filename: this.folderScriptsChain.postResponsePath || 'folder/scripts/post-response.js'
+                });
             }
         }
 
         if (this.collectionScripts?.postResponse) {
-            scripts.push(this.collectionScripts.postResponse);
+            scripts.push({
+                code: this.collectionScripts.postResponse,
+                filename: this.collectionScripts.postResponsePath || 'collection/scripts/post-response.js'
+            });
         }
 
         return scripts;

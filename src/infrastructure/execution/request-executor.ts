@@ -21,9 +21,9 @@ import { InterceptorChain } from '../http/interceptor-chain';
 import { IHttpRequestService } from '../http/interfaces';
 import { IRequestPreprocessor } from '../http/request-preprocessor';
 import { UrlBuilder } from '../http/url-builder';
-import { IScriptExecutor, PreRequestScriptContext } from '../script/interfaces';
+import { IScriptExecutor, PreRequestScriptContext, ScriptSource } from '../script/interfaces';
 import { ScriptExecutor } from '../script/script-executor';
-import { parseResponseCookieDetails } from '../script/script-utils';
+import { parseResponseCookieDetails, requestScriptSources } from '../script/script-utils';
 
 /**
  * Options for request execution
@@ -482,36 +482,24 @@ export class RequestExecutor {
         request: UnifiedRequest,
         collection: UnifiedCollection,
         folderPath: UnifiedFolder[] = []
-    ): { preRequest: string[]; postResponse: string[] } {
-        const preRequest: string[] = [];
-        const postResponse: string[] = [];
-        
+    ): { preRequest: ScriptSource[]; postResponse: ScriptSource[] } {
+        const preRequest: ScriptSource[] = [];
+        const postResponse: ScriptSource[] = [];
+
         // 1. Collection-level scripts
-        if (collection.scripts?.preRequest) {
-            preRequest.push(collection.scripts.preRequest);
-        }
-        if (collection.scripts?.postResponse) {
-            postResponse.push(collection.scripts.postResponse);
-        }
-        
+        preRequest.push(...requestScriptSources(collection.scripts, 'preRequest'));
+        postResponse.push(...requestScriptSources(collection.scripts, 'postResponse'));
+
         // 2. Folder-level scripts (in order from root to leaf)
         for (const folder of folderPath) {
-            if (folder.scripts?.preRequest) {
-                preRequest.push(folder.scripts.preRequest);
-            }
-            if (folder.scripts?.postResponse) {
-                postResponse.push(folder.scripts.postResponse);
-            }
+            preRequest.push(...requestScriptSources(folder.scripts, 'preRequest'));
+            postResponse.push(...requestScriptSources(folder.scripts, 'postResponse'));
         }
-        
+
         // 3. Request-level scripts
-        if (request.scripts?.preRequest) {
-            preRequest.push(request.scripts.preRequest);
-        }
-        if (request.scripts?.postResponse) {
-            postResponse.push(request.scripts.postResponse);
-        }
-        
+        preRequest.push(...requestScriptSources(request.scripts, 'preRequest'));
+        postResponse.push(...requestScriptSources(request.scripts, 'postResponse'));
+
         return { preRequest, postResponse };
     }
     

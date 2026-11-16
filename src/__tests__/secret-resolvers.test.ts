@@ -624,14 +624,14 @@ describe('pm.vault', () => {
         } as PreRequestScriptContext;
 
         const session = executor.createRequestSession(context);
-        await session.executePreRequest('// no-op');
-        const result = await session.executePostResponse(
+        await session.executePreRequest([{ code: '// no-op', filename: 'pre-request.js' }]);
+        const result = await session.executePostResponse([{ code:
             `
             pm.test('vault read', async function () {
                 const value = await pm.vault.get('vault/app#password');
                 pm.expect(value).to.equal('s3cret');
             });
-            `,
+            `, filename: 'post-response.js' }],
             responseContext(),
         );
 
@@ -668,14 +668,14 @@ describe('pm.sendRequest', () => {
         } as PreRequestScriptContext;
 
         const session = executor.createRequestSession(context);
-        await session.executePreRequest(`
+        await session.executePreRequest([{ code: `
             const base = pm.variables.get('baseUrl');
             await pm.sendRequest({
                 url: base + '/{{secret:vault/app#password}}',
                 method: 'GET',
                 headers: { 'X-Api-Key': '{{secret:vault/app#client_secret | upper}}' }
             });
-        `);
+        `, filename: 'pre-request.js' }]);
 
         expect(captured).toHaveLength(1);
         expect(captured[0].url).toBe('https://api.example.test/s3cret');
