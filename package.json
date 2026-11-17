@@ -107,7 +107,7 @@
     "@types/uuid": "^9.0.7",
     "@types/ws": "^8.18.2",
     "esbuild": "0.28.2",
-    "rimraf": "^5.0.5",
+    "rimraf": "^6.1.4",
     "tsup": "^8.0.1",
     "typescript": "^5.3.0",
     "vitest": "^4.1.9"
@@ -120,5 +120,8 @@
   "homepage": "https://github.com/hsl1230/http-forge.core",
   "bugs": {
     "url": "https://github.com/hsl1230/http-forge.core/issues"
+  },
+  "allowScripts": {
+    "esbuild@0.28.2": true
   }
 }

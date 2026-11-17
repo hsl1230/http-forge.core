@@ -69,10 +69,10 @@ export class RequestScriptSession implements IRequestScriptSession {
     private ctx: any = null;
     private modifiedRequest: any = null;
     private assertions: TestAssertion[] = [];
-    
+
     // Console messages - stored locally, not on ctx
     private consoleMessages: Array<ConsoleMessage> = [];
-    
+
     // Variable state storage
     private _initialVariables: Record<string, string> = {};
     private _initialCollectionVariables: Record<string, string> = {};
@@ -94,7 +94,7 @@ export class RequestScriptSession implements IRequestScriptSession {
     // Instrumented timers so pending setTimeout/setInterval work can be drained
     // (Postman-compatible) before variable scopes are committed.
     private readonly timerRegistry: TimerRegistry;
-    
+
     constructor(
         private readonly deps: SessionDependencies,
         private readonly initialContext: PreRequestScriptContext
@@ -127,27 +127,27 @@ export class RequestScriptSession implements IRequestScriptSession {
 
         // Create shared context (this will be reused across script executions)
         this.ctx = this.createSharedContext();
-        
+
         // Reset console messages for each session
         this.consoleMessages = [];
-        
+
         // Create script console using closure over instance property
         const session = this;
         const scriptConsole = {
-            log: (...args: any[]) => { 
-                session.consoleMessages.push({ level: 'log', args }); 
+            log: (...args: any[]) => {
+                session.consoleMessages.push({ level: 'log', args });
             },
-            info: (...args: any[]) => { 
-                session.consoleMessages.push({ level: 'info', args }); 
+            info: (...args: any[]) => {
+                session.consoleMessages.push({ level: 'info', args });
             },
-            warn: (...args: any[]) => { 
-                session.consoleMessages.push({ level: 'warn', args }); 
+            warn: (...args: any[]) => {
+                session.consoleMessages.push({ level: 'warn', args });
             },
-            error: (...args: any[]) => { 
-                session.consoleMessages.push({ level: 'error', args }); 
+            error: (...args: any[]) => {
+                session.consoleMessages.push({ level: 'error', args });
             }
         };
-        
+
         // Create shared VM context
         this.vmContext = this.deps.createVM(this.ctx, scriptConsole, this.timerRegistry.timers);
     }
@@ -557,7 +557,8 @@ export class RequestScriptSession implements IRequestScriptSession {
                     ? `(async () => {\n/* --- script --- */\n${resolvedCode}\n})();`
                     : resolvedCode;
 
-                const compiledScript = new vm.Script(codeToRun, { filename: segment.filename });
+                const codeWithSource = `${codeToRun}\n//# sourceURL=${segment.filename}`;
+                const compiledScript = new vm.Script(codeWithSource, { filename: segment.filename });
                 const runResult = compiledScript.runInContext(this.vmContext!, { timeout: scriptTimeoutMs });
 
                 // In isolated mode the program is an async IIFE — await its completion.
@@ -576,7 +577,7 @@ export class RequestScriptSession implements IRequestScriptSession {
                     args: [`Script timed out after ${scriptTimeoutMs}ms; pending async work was cancelled.`]
                 });
             }
-            
+
             // Format console output
             const consoleOutput = formatConsoleOutput(this.consoleMessages);
 
@@ -668,7 +669,8 @@ export class RequestScriptSession implements IRequestScriptSession {
                     ? `(async () => {\n/* --- script --- */\n${resolvedCode}\n})();`
                     : resolvedCode;
 
-                const compiledScript = new vm.Script(codeToRun, { filename: segment.filename });
+                const codeWithSource = `${codeToRun}\n//# sourceURL=${segment.filename}`;
+                const compiledScript = new vm.Script(codeWithSource, { filename: segment.filename });
                 const runResult = compiledScript.runInContext(this.vmContext!, { timeout: scriptTimeoutMs });
 
                 // In isolated mode the program is an async IIFE — await its completion.
@@ -744,9 +746,9 @@ export class RequestScriptSession implements IRequestScriptSession {
         if (a === b) return true;
         if (!a && !b) return true;
         if (!a || !b) return false;
-        return a.type === b.type && 
-               a.format === b.format && 
-               JSON.stringify(a.content) === JSON.stringify(b.content);
+        return a.type === b.type &&
+            a.format === b.format &&
+            JSON.stringify(a.content) === JSON.stringify(b.content);
     }
 
     /**
