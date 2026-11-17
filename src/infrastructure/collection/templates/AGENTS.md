@@ -8,6 +8,25 @@ This folder is the **HTTP Forge workspace root**. Do not create a nested `.http-
 
 ---
 
+## Contents
+
+- [Quick Reference](#quick-reference) — commands, paths, syntax, globals
+- [Decision Tree](#decision-tree) — CLI vs MCP routing
+- [Workflow](#workflow-design--discover--generate--edit--run--report--fix)
+- [Folder Structure](#folder-structure)
+- [Business Knowledge](#business-knowledge-httpforgeknowledge) / [Same-Workspace Code and Docs](#same-workspace-code-and-docs--read-before-generating)
+- [JSON Schemas](#json-schemas)
+- [Authoring by Direct File Editing](#authoring-by-direct-file-editing)
+- [Test Generation Best Practices](#test-generation-best-practices)
+- [AI Test Generation](#ai-test-generation)
+- [Scripts & Assertions](#scripts--assertions)
+- [Recipes](#recipes-step-by-step)
+- [How AI Should Run Tests](#how-ai-should-run-tests)
+- [Debugging Scripts](#debugging-scripts)
+- [Documentation](#documentation)
+
+---
+
 ## Quick Reference
 
 ### Most-used commands
@@ -25,7 +44,7 @@ http-forge drift --path <project>
 ### Key paths
 ```
 assets/collections/{slug}/request.json     — request definition
-assets/collections/{slug}/scripts/post-response.js — assertions (pm.test)
+assets/collections/{slug}/scripts/*.js    — pre-request / post-response scripts
 assets/environments/{env}.json             — environment variables
 assets/suites/{name}.suite.json           — test suite
 .http-forge/knowledge/**/*.md             — business context for AI
@@ -207,12 +226,6 @@ pm.test('Has required fields', () => {
 - `pm.request` (method, url, body, headers), `pm.response` (code, status, body, headers, cookies, responseTime)
 - Legacy: `postman.setGlobalVariable()`, `postman.setEnvironmentVariable()`, `postman.getResponseHeader()`
 
-### Template syntax
-- `{{variableName}}` — variable
-- `{{value | upper | trim}}` — filter chain
-- `{{$guid}}`, `{{$timestamp}}` — dynamic variables
-- `{{variable | date:'YYYY-MM-DD'}}` — filter with argument
-
 ---
 
 ## Recipes (step-by-step)
@@ -277,19 +290,7 @@ pm.test('Has id', () => pm.expect(pm.response.json()).to.have.property('id'));
 **Rule:** Never use MCP/CLI to discover structure — read JSON files directly.
 
 ### CLI commands
-```
-http-forge run collection <name> --env <env> --json
-http-forge run suite <name> --json
-http-forge run request <name> --collection <ref> --json
-http-forge run folder <path> --collection <ref> --json
-http-forge discover --path <project> --output json
-http-forge generate-suite --path <project> --collection <ref> [--run]
-http-forge architect "intent" --apply
-http-forge qa --path <project> --collection <ref> --base-url <url>
-http-forge drift --path <project>
-http-forge refresh-agents-md --apply
-```
-Add `--include report` for HTML report. Add `--exit-code` for CI.
+See Quick Reference above for the full list. Add `--include report` for HTML report. Add `--exit-code` for CI.
 
 ### MCP tools
 - **Execution:** `run_request`, `run_folder`, `run_collection`, `run_suite` (add `async: true`)
@@ -306,44 +307,8 @@ Add `--include report` for HTML report. Add `--exit-code` for CI.
 
 ---
 
-## Debugging Scripts
-
-HTTP Forge runs scripts in a Node.js VM context inside the VS Code extension host. To debug:
-
-### Option A: Launch VS Code with --inspect (recommended)
-
-1. **Close all VS Code windows.**
-2. **Launch from terminal:**
-   - Windows: `code --inspect-extensions=9229 "C:\path\to\your\project"`
-   - Mac/Linux: `code --inspect-extensions=9229 /path/to/your/project`
-3. In VS Code, open Run & Debug (`Ctrl+Shift+D`), click the gear icon, select "Node.js: Attach", set port to `9229`.
-4. Press **F5** to attach the debugger.
-5. Open your script file (e.g. `scripts/post-response.js`), set a breakpoint (F9) or insert `debugger;`.
-6. Run a collection/suite from the Command Palette or Test Suite panel.
-7. The debugger pauses at the breakpoint. Inspect variables, step through code.
-
-### Option B: Attach to a running VS Code
-
-1. Open VS Code normally with your project.
-2. `Ctrl+Shift+P` → "Debug: Attach to Node Process" → select the "extensionHost" process.
-3. Set breakpoints in your script files.
-4. Run a collection/suite — debugger pauses at breakpoints.
-
-### Option C: No debugger (console.log + Test Suite panel)
-
-1. Insert `console.log('debug:', JSON.stringify(pm.response.json()))` in your script.
-2. View output in `Help → Toggle Developer Tools → Console`.
-3. Or click a result row in the Test Suite panel for full request/response details.
-4. Or use MCP `explain_failure` for AI-powered root cause analysis.
-
-### Notes
-- Breakpoints only work on **script files on disk** (`scripts/pre-request.js`, `scripts/post-response.js`), not on webview-edited scripts (save first).
-- In collection, suite, and single-request runs, each script level (collection, folder, request) runs as a separate VM script with the file path it was loaded from, so breakpoints map to the correct file.
-- Flow-node scripts and other inline scripts (e.g. a script typed into a webview without saving) use a synthetic filename — use `debugger;` statements for precise placement.
-- Without a debugger attached, `debugger;` statements are silently ignored.
-
 ## Documentation
 
 Key docs: https://github.com/hsl1230/http-forge/tree/main/docs/user-guide
 Script API types: `.http-forge/assets/http-forge-globals.d.ts`
-`;
+
