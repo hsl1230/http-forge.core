@@ -240,6 +240,7 @@ export class TestSuiteStore implements ITestSuiteStore {
      */
     private hasEmbeddedRequest(slug: string | undefined): boolean {
         if (!this.suiteDir || !slug) return false;
+        if (!fs.existsSync(this.suiteDir)) return false;
         return fs.existsSync(path.join(this.suiteDir, slug, 'request.json'));
     }
 
@@ -477,38 +478,92 @@ export class TestSuiteStore implements ITestSuiteStore {
         const requestNodes = allNodes.filter(n => n.type === 'request');
         const allSlugs: string[] = requestNodes.map((n: any) => n.request?.slug || '').filter(Boolean);
 
+        // Many collections are opened as temporary suites whose suite directory
+        // never exists on disk. Probing that directory per request is a
+        // per-request syscall that is disproportionately slow on Windows
+        // (antivirus/NTFS). Check once and skip embedded resolution entirely
+        // when there is nothing to load.
+        const suiteDirExists = !!this.suiteDir && fs.existsSync(this.suiteDir);
+
+        // Display-only resolution: index each collection's in-memory request
+        // metadata once instead of hydrating every request. `resolveRequestEntry`
+        // loads body/scripts/schemas/doc, which makes opening a large collection
+        // quadratic in requests because each detail load has to locate the item
+        // on disk.
+        const requestIndexes = new Map<string, Map<string, CollectionRequestItem>>();
+        const getRequestIndex = (collection: Collection): Map<string, CollectionRequestItem> => {
+            let index = requestIndexes.get(collection.id);
+            if (!index) {
+                index = this.indexRequestsById(collection);
+                requestIndexes.set(collection.id, index);
+            }
+            return index;
+        };
+
         const results = [];
         for (const node of requestNodes) {
             const suiteRequest: SuiteRequest = node.request;
             if (!suiteRequest) continue;
 
             if (!suiteRequest.slug) {
-                suiteRequest.slug = generateSlug(suiteRequest.name || 'request', allSlugs);
-                allSlugs.push(suiteRequest.slug);
+                if (suiteDirExists) {
+                    suiteRequest.slug = generateSlug(suiteRequest.name || 'request', allSlugs);
+                    allSlugs.push(suiteRequest.slug);
+                } else {
+                    // Temp suites have no embedded request folders, so a full
+                    // filesystem-safe slug is unnecessary. Use the request id as
+                    // a cheap unique lookup key for webview actions.
+                    suiteRequest.slug = suiteRequest.requestId;
+                }
             }
 
-            const entry = this.resolveRequestEntry(suiteRequest);
-            if (entry) {
-                const collection = this.collectionService.getCollection(suiteRequest.collectionId);
-                results.push({
-                    id: `${suiteRequest.collectionId}:${suiteRequest.requestId}`,
-                    collectionId: suiteRequest.collectionId,
-                    requestId: suiteRequest.requestId,
-                    name: entry.request.name || 'Unknown',
-                    method: entry.request.method || 'GET',
-                    url: entry.request.url || '',
-                    collectionName: collection?.name || 'Unknown Collection',
-                    folderPath: suiteRequest.folderPath || '',
-                    enabled: node.enabled !== false,
-                    hasEmbeddedRequest: this.hasEmbeddedRequest(suiteRequest.slug),
-                    slug: suiteRequest.slug,
-                    description: node.name !== entry.request.name ? node.name : (suiteRequest.description || undefined)
-                });
-            } else {
+            const collection = this.collectionService.getCollection(suiteRequest.collectionId);
+            const embeddedRequest = (suiteDirExists && suiteRequest.slug)
+                ? this.loadSuiteRequest(suiteRequest.slug)
+                : undefined;
+            const request = embeddedRequest
+                ?? (collection ? getRequestIndex(collection).get(suiteRequest.requestId) : undefined);
+
+            if (!request) {
                 console.warn(`[TestSuiteStore] getResolvedRequests: could not resolve request — collectionId=${suiteRequest.collectionId} requestId=${suiteRequest.requestId} slug=${suiteRequest.slug}`);
+                continue;
             }
+
+            results.push({
+                id: `${suiteRequest.collectionId}:${suiteRequest.requestId}`,
+                collectionId: suiteRequest.collectionId,
+                requestId: suiteRequest.requestId,
+                name: request.name || 'Unknown',
+                method: request.method || 'GET',
+                url: request.url || '',
+                collectionName: collection?.name || 'Unknown Collection',
+                folderPath: suiteRequest.folderPath || '',
+                enabled: node.enabled !== false,
+                hasEmbeddedRequest: suiteDirExists && this.hasEmbeddedRequest(suiteRequest.slug),
+                slug: suiteRequest.slug,
+                description: node.name !== request.name ? node.name : (suiteRequest.description || undefined)
+            });
         }
         return results;
+    }
+
+    /**
+     * Index a collection's request items by id from the in-memory tree only.
+     * Never triggers heavy-field hydration — used for display resolution.
+     */
+    private indexRequestsById(collection: Collection): Map<string, CollectionRequestItem> {
+        const index = new Map<string, CollectionRequestItem>();
+        const visit = (items: CollectionItem[] | undefined): void => {
+            for (const item of items || []) {
+                if (item.type === 'request') {
+                    index.set(item.id, item);
+                } else if (item.items) {
+                    visit(item.items);
+                }
+            }
+        };
+        visit(collection.items);
+        return index;
     }
 
     /**

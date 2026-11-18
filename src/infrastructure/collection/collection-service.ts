@@ -16,6 +16,7 @@ import { generateId, sanitizeName } from '../../utils/helpers';
 import { IConfigService } from '../config';
 import { writeEnvFile, writeFolderItems, writeScriptFile } from '../import-export/rest-client-export';
 import { CollectionLoaderFactory } from './collection-loader-factory';
+import { FolderCollectionStore } from './folder-collection-store';
 import { ICollectionStore, isLightLoaded, markDetailLoaded } from './collection-store';
 import { deleteItemFromTree, findItemById } from './folder-io';
 
@@ -362,7 +363,19 @@ export class CollectionService implements ICollectionService {
         }
     }
 
-    private loadCollections(): void {
+    private loadCollections(invalidateCache: boolean = false): void {
+        if (invalidateCache && this.loader instanceof FolderCollectionStore) {
+            try {
+                const cacheDir = (this.loader as any).getCacheDir?.();
+                if (cacheDir && fs.existsSync(cacheDir)) {
+                    for (const f of fs.readdirSync(cacheDir)) {
+                        if (f.endsWith('.cache.json')) {
+                            try { fs.unlinkSync(path.join(cacheDir, f)); } catch { /* ignore */ }
+                        }
+                    }
+                }
+            } catch { /* ignore */ }
+        }
         this.collections.clear();
         // Light mode keeps startup/tree-view cheap (metadata only, no
         // body/scripts/schemas/doc). Heavy fields load on demand via
@@ -388,12 +401,23 @@ export class CollectionService implements ICollectionService {
         if (!this.fileWatcherFactory) {
             return;
         }
-        this.fileWatcher = this.fileWatcherFactory.createFileWatcher(this.collectionsDir, '**/*');
+        this.fileWatcher = this.fileWatcherFactory.createFileWatcher(this.collectionsDir, '**/*.{json,md}');
         // Debounce: bulk operations (e.g. importing a collection) write many files in quick
         // succession. Reloading on every event re-scans the entire collections directory and
         // may read partially-written JSON. Coalesce the burst into a single reload once the
-        // writes settle.
-        const reloadAndNotify = () => {
+        // writes settle. On Windows, antivirus scanning of many small files makes each
+        // reload expensive, so we (a) narrow the watched glob to structural files only,
+        // (b) guard against non-structural changes, and (c) use a longer debounce.
+        const isStructuralFile = (filePath: string): boolean => {
+            const lower = (filePath || '').toLowerCase();
+            return lower.endsWith('collection.json') || lower.endsWith('folder.json') || lower.endsWith('request.json');
+        };
+        const reloadAndNotify = (changedPath?: string) => {
+            // Ignore changes to non-structural files (scripts, docs, schemas, etc.)
+            // to avoid spurious reloads triggered by editors or antivirus scans.
+            if (changedPath && !isStructuralFile(changedPath)) {
+                return;
+            }
             if (this.debounceTimer) {
                 clearTimeout(this.debounceTimer);
             }
@@ -403,11 +427,11 @@ export class CollectionService implements ICollectionService {
                 this.selfWritePending = false;
                 if (!wasSelf) {
                     // External change (e.g. git pull, another process) — reload from disk.
-                    this.loadCollections();
+                    this.loadCollections(true);
                 }
                 // Always notify UI so tree views and panels refresh with current state.
                 this.onCollectionsChanged?.();
-            }, 300);
+            }, 1500);
         };
         this.fileWatcher.onDidChange(reloadAndNotify);
         this.fileWatcher.onDidCreate(reloadAndNotify);

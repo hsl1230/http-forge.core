@@ -558,8 +558,7 @@ export class RequestScriptSession implements IRequestScriptSession {
                     : resolvedCode;
 
                 const codeWithSource = `${codeToRun}\n//# sourceURL=${segment.filename}`;
-                const compiledScript = new vm.Script(codeWithSource, { filename: segment.filename });
-                const runResult = compiledScript.runInContext(this.vmContext!, { timeout: scriptTimeoutMs });
+                const runResult = vm.runInContext(codeWithSource, this.vmContext!, { filename: segment.filename, timeout: scriptTimeoutMs });
 
                 // In isolated mode the program is an async IIFE — await its completion.
                 if (this.deps.isolateScripts && runResult && typeof (runResult as any).then === 'function') {
@@ -670,8 +669,7 @@ export class RequestScriptSession implements IRequestScriptSession {
                     : resolvedCode;
 
                 const codeWithSource = `${codeToRun}\n//# sourceURL=${segment.filename}`;
-                const compiledScript = new vm.Script(codeWithSource, { filename: segment.filename });
-                const runResult = compiledScript.runInContext(this.vmContext!, { timeout: scriptTimeoutMs });
+                const runResult = vm.runInContext(codeWithSource, this.vmContext!, { filename: segment.filename, timeout: scriptTimeoutMs });
 
                 // In isolated mode the program is an async IIFE — await its completion.
                 if (this.deps.isolateScripts && runResult && typeof (runResult as any).then === 'function') {

@@ -5,6 +5,22 @@ All notable changes to @http-forge/core will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## 1.0.6 - 2026-11-18
+
+### Changed
+
+- Added startup metadata cache (`.http-forge/.cache/collections/`) for folder collections: subsequent startups read one cache file per collection instead of 1,180+ individual files, reducing load time from seconds to milliseconds on Windows (with antivirus).
+- Cache is written asynchronously (fire-and-forget) so startup isn't blocked by the write.
+- Cache is invalidated on mutations and external file changes.
+
+## 1.0.5 - 2026-11-18
+
+### Changed
+
+- `TestSuiteStore.getResolvedRequests()` now resolves display metadata from the in-memory collection tree instead of hydrating every request, eliminating O(N²) disk scans when opening a collection in the Test Suite panel (large collections now load in milliseconds instead of seconds).
+- `FolderCollectionStore.findItemPath()` now uses a derived per-collection id→path index (rebuilt on move/delete/save/reload) instead of scanning the whole collection folder per lookup, speeding up request hydration, moves, deletes, and updates.
+- Added regression tests for light-metadata display resolution and nested/moved item path resolution.
+
 ## 1.0.4 - 2026-11-16
 
 ### Added

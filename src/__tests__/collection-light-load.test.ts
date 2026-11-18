@@ -6,8 +6,9 @@ import { ConfigService } from '../infrastructure/config/config-service';
 import { CollectionService } from '../infrastructure/collection/collection-service';
 import { isLightLoaded } from '../infrastructure/collection/collection-store';
 import { FolderCollectionStore } from '../infrastructure/collection/folder-collection-store';
+import { DEFAULT_SUITE_CONFIG, TestSuite } from '../infrastructure/test-suite/interfaces';
 import { TestSuiteStore } from '../infrastructure/test-suite/test-suite-store';
-import type { CollectionRequestItem } from '../types/collection';
+import type { CollectionFolderItem, CollectionRequestItem } from '../types/collection';
 
 /**
  * Lazy collection loading (startup optimization).
@@ -196,6 +197,91 @@ describe('collection light loading', () => {
         });
 
         expect(entry?.request.body?.content).toContain('widget');
+    });
+
+    it('getResolvedRequests returns display metadata without hydrating light items', async () => {
+        const ws = mkTemp('light-suite-display-');
+        const config = new ConfigService(ws);
+        const collectionsDir = config.getCollectionsPath();
+        fs.mkdirSync(collectionsDir, { recursive: true });
+        const { collectionId } = await seedCollectionsDir(collectionsDir);
+
+        const collectionService = new CollectionService(config);
+        const suiteStore = new TestSuiteStore(collectionService);
+        const suite: TestSuite = {
+            id: 'temp-shop',
+            name: 'Shop',
+            nodes: [{
+                type: 'request',
+                name: 'Create order',
+                request: {
+                    collectionId,
+                    collectionName: 'Shop',
+                    requestId: 'req-1',
+                    name: 'Create order',
+                    method: 'POST',
+                    folderPath: ''
+                },
+                enabled: true
+            }],
+            config: { ...DEFAULT_SUITE_CONFIG },
+            isTemporary: true,
+            createdAt: 0,
+            updatedAt: 0
+        };
+        suiteStore.setSuite(suite);
+        suiteStore.setSuiteDir(path.join(config.getSuitesPath(), suite.id));
+
+        const resolved = suiteStore.getResolvedRequests();
+
+        expect(resolved).toHaveLength(1);
+        expect(resolved[0]).toMatchObject({
+            name: 'Create order',
+            method: 'POST',
+            url: 'https://api.example.com/orders',
+            collectionName: 'Shop',
+            slug: 'req-1',
+            hasEmbeddedRequest: false
+        });
+
+        // Display resolution is metadata-only: heavy fields stay on disk.
+        const treeItem = collectionService.getCollection(collectionId)?.items[0] as CollectionRequestItem;
+        expect(isLightLoaded(treeItem)).toBe(true);
+        expect(treeItem.body?.content).toBeUndefined();
+        expect(treeItem.scripts).toBeUndefined();
+    });
+
+    it('detail lookup resolves nested and moved items from the in-memory path index', async () => {
+        const dir = mkTemp('light-nested-');
+        const store = new FolderCollectionStore(dir);
+        const collection = await store.create('Shop');
+        const folder: CollectionFolderItem = { id: 'folder-auth', type: 'folder', name: 'Auth', items: [] };
+        await store.saveItem(collection.id, folder);
+        const request: CollectionRequestItem = {
+            id: 'req-nested',
+            type: 'request',
+            name: 'Login',
+            method: 'POST',
+            url: 'https://api.example.com/login',
+            doc: '# Login'
+        };
+        await store.saveItem(collection.id, request, folder.id);
+
+        const reloaded = new FolderCollectionStore(dir);
+        reloaded.loadAllLight();
+
+        expect(reloaded.getItemPath(collection.id, 'req-nested'))
+            .toBe(path.join(dir, 'shop', 'auth', 'login'));
+        expect((reloaded.loadRequestDetail(collection.id, 'req-nested') as CollectionRequestItem).doc)
+            .toContain('Login');
+
+        // Moving the item invalidates the cached path; the index must rebuild from the tree.
+        await reloaded.moveItem(collection.id, 'req-nested', undefined);
+
+        expect(reloaded.getItemPath(collection.id, 'req-nested'))
+            .toBe(path.join(dir, 'shop', 'login'));
+        expect((reloaded.loadRequestDetail(collection.id, 'req-nested') as CollectionRequestItem).doc)
+            .toContain('Login');
     });
 
     it('service getRequestScript and getRequestDetail work on light items', async () => {

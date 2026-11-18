@@ -70,6 +70,18 @@ export class FolderCollectionStore implements ICollectionStore {
     private slugToIdMap: Map<string, string> = new Map();
     private idToSlugMap: Map<string, string> = new Map();
     /**
+     * Lazily-derived item id → on-disk directory path index, per collection.
+     * Built from the in-memory tree (no extra disk I/O) so resolving a path for
+     * one item does not re-scan the whole collection folder for every lookup.
+     */
+    private itemPathIndex: Map<string, Map<string, string>> = new Map();
+    /**
+     * Directory for serialized collection metadata caches. Lives inside the
+     * collections directory as `.cache/` so it is self-contained and already
+     * covered by the existing `.gitignore` (`.cache/`).
+     */
+    private cacheDir: string;
+    /**
      * When true, `loadRequestFromDir` delegates to the light loader
      * (metadata only). Set only inside `loadAllLight()`; never left on.
      */
@@ -77,6 +89,7 @@ export class FolderCollectionStore implements ICollectionStore {
 
     constructor(collectionsDir: string) {
         this.collectionsDir = collectionsDir;
+        this.cacheDir = path.join(collectionsDir, '.cache');
         // Do not create directories eagerly — only when first collection/suite/env is saved.
         // This allows opening an empty workspace without polluting it with .http-forge.
     }
@@ -172,6 +185,7 @@ export class FolderCollectionStore implements ICollectionStore {
         this.cache.clear();
         this.slugToIdMap.clear();
         this.idToSlugMap.clear();
+        this.itemPathIndex.clear();
 
         if (!fs.existsSync(this.collectionsDir)) {
             return [];
@@ -181,8 +195,10 @@ export class FolderCollectionStore implements ICollectionStore {
         const collections: Collection[] = [];
 
         for (const entry of entries) {
-            if (entry.isDirectory()) {
-                try {
+            if (!entry.isDirectory() || entry.name.startsWith('.')) {
+                continue;
+            }
+            try {
                     const collection = this.loadCollectionFromFolder(entry.name);
                     if (collection) {
                         this.cache.set(collection.id, collection);
@@ -193,7 +209,6 @@ export class FolderCollectionStore implements ICollectionStore {
                 } catch (error) {
                     console.error(`[FolderCollectionStore] Failed to load ${entry.name}:`, error);
                 }
-            }
         }
 
         return collections;
@@ -215,6 +230,12 @@ export class FolderCollectionStore implements ICollectionStore {
             return undefined;
         }
 
+        // Try loading from cache first (avoids reading 1,180+ files on Windows).
+        const cached = this.loadCollectionFromCache(slug, metadataPath, metadata);
+        if (cached) {
+            return cached;
+        }
+
         try {
             // Load collection scripts
             const scripts = this.loadScriptsFromDir(path.join(collectionPath, SCRIPTS_DIR));
@@ -233,11 +254,121 @@ export class FolderCollectionStore implements ICollectionStore {
                 items
             };
 
+            // Build the cache in the background (fire-and-forget) so startup
+            // isn't blocked by the write. The cache makes subsequent loads fast.
+            this.saveCollectionToCacheAsync(collection, slug, metadataPath);
+
             return collection;
         } catch (error) {
             console.error(`[FolderCollectionStore] Failed to parse ${metadataPath}:`, error);
             return undefined;
         }
+    }
+
+    /**
+     * Get the cache directory, creating it if needed.
+     */
+    private getCacheDir(): string {
+        // Place cache in the forge root's .cache/collections/ (consistent with
+        // the existing .http-forge/.cache/ convention and already gitignored).
+        const parent = path.dirname(this.collectionsDir);
+        const forgeRoot = path.basename(parent) === 'assets'
+            ? path.dirname(parent)
+            : parent;
+        const dir = path.join(forgeRoot, '.cache', 'collections');
+        if (!fs.existsSync(dir)) {
+            try { fs.mkdirSync(dir, { recursive: true }); } catch { /* ignore */ }
+        }
+        return dir;
+    }
+
+    /**
+     * Get the cache file path for a collection.
+     */
+    private getCachePath(collectionId: string): string {
+        return path.join(this.getCacheDir(), `${collectionId}.cache.json`);
+    }
+
+    /**
+     * Try to load a collection from cache. Returns undefined on miss/stale/corrupt.
+     * Uses collection.json's mtime as the freshness key.
+     */
+    private loadCollectionFromCache(collectionSlug: string, metadataPath: string, metadata: CollectionMetadata): Collection | undefined {
+        const cachePath = this.getCachePath(metadata.id);
+        if (!fs.existsSync(cachePath)) {
+            return undefined;
+        }
+        let mtime: number;
+        try {
+            mtime = fs.statSync(metadataPath).mtimeMs;
+        } catch {
+            return undefined;
+        }
+        try {
+            const raw = fs.readFileSync(cachePath, 'utf-8');
+            const cached = JSON.parse(raw) as { mtime: number; light: boolean; collection: Collection; collectionSlug: string; itemSlugs: Record<string, string> };
+            if (cached.mtime !== mtime) {
+                return undefined; // stale
+            }
+            if (cached.light !== this.lightLoad) {
+                return undefined; // mode mismatch
+            }
+            // Restore slug maps
+            this.slugToIdMap.set(cached.collectionSlug, cached.collection.id);
+            this.idToSlugMap.set(cached.collection.id, cached.collectionSlug);
+            for (const [id, slug] of Object.entries(cached.itemSlugs || {})) {
+                this.slugToIdMap.set(slug, id);
+                this.idToSlugMap.set(id, slug);
+            }
+            return cached.collection;
+        } catch {
+            // Corrupt cache — fall through to folder load
+            try { fs.unlinkSync(cachePath); } catch { /* ignore */ }
+            return undefined;
+        }
+    }
+
+    /**
+     * Collect item id → slug mappings from the in-memory tree.
+     */
+    private collectItemSlugs(items: CollectionItem[]): Record<string, string> {
+        const result: Record<string, string> = {};
+        const visit = (children: CollectionItem[] | undefined): void => {
+            for (const item of children || []) {
+                const slug = this.idToSlugMap.get(item.id);
+                if (slug) result[item.id] = slug;
+                if (item.type === 'folder' && item.items) visit(item.items);
+            }
+        };
+        visit(items);
+        return result;
+    }
+
+    /**
+     * Write the collection cache asynchronously (fire-and-forget).
+     * Uses collection.json's mtime as the freshness key.
+     */
+    private saveCollectionToCacheAsync(collection: Collection, collectionSlug: string, metadataPath: string): void {
+        let mtime: number;
+        try { mtime = fs.statSync(metadataPath).mtimeMs; } catch { return; }
+        try {
+            const cachePath = this.getCachePath(collection.id);
+            const data = JSON.stringify({
+                mtime,
+                light: this.lightLoad,
+                collection,
+                collectionSlug,
+                itemSlugs: this.collectItemSlugs(collection.items)
+            });
+            fs.promises.writeFile(cachePath, data, 'utf-8').catch(() => { /* ignore */ });
+        } catch { /* ignore */ }
+    }
+
+    /**
+     * Invalidate (delete) the cache for a collection.
+     */
+    private invalidateCollectionCache(collectionId: string): void {
+        try { fs.unlinkSync(this.getCachePath(collectionId)); } catch { /* ignore */ }
     }
 
     /**
@@ -521,6 +652,7 @@ export class FolderCollectionStore implements ICollectionStore {
         const slug = this.idToSlugMap.get(id);
         if (slug) {
             const collection = this.loadCollectionFromFolder(slug);
+            this.itemPathIndex.delete(id);
             if (collection) {
                 this.cache.set(id, collection);
             }
@@ -590,6 +722,10 @@ export class FolderCollectionStore implements ICollectionStore {
             'utf-8'
         );
         this.cache.set(collection.id, collection);
+        // Item directory slugs/order may have changed during a bulk write.
+        this.itemPathIndex.delete(collection.id);
+        // Update cache in the background (fire-and-forget).
+        this.saveCollectionToCacheAsync(collection, slug, path.join(collectionPath, METADATA_FILES.collection));
     }
 
     /**
@@ -773,6 +909,8 @@ export class FolderCollectionStore implements ICollectionStore {
             this.cache.delete(id);
             this.idToSlugMap.delete(id);
             this.slugToIdMap.delete(slug);
+            this.itemPathIndex.delete(id);
+            this.invalidateCollectionCache(id);
             return true;
         } catch (error) {
             console.error(`[FolderCollectionStore] Failed to delete collection ${id}:`, error);
@@ -985,6 +1123,9 @@ export class FolderCollectionStore implements ICollectionStore {
                 collection.items.push(item);
             }
         }
+
+        // Update cache in the background (fire-and-forget).
+        this.saveCollectionToCacheAsync(collection, collectionSlug, path.join(this.collectionsDir, collectionSlug, METADATA_FILES.collection));
     }
 
     /**
@@ -1005,11 +1146,17 @@ export class FolderCollectionStore implements ICollectionStore {
             await fs.promises.rm(itemPath, { recursive: true, force: true });
 
             this.deleteItemFromTree(collection.items, itemId);
+            this.itemPathIndex.delete(collectionId);
 
             const itemSlug = this.idToSlugMap.get(itemId);
             if (itemSlug) {
                 this.slugToIdMap.delete(itemSlug);
                 this.idToSlugMap.delete(itemId);
+            }
+
+            const collectionSlug = this.idToSlugMap.get(collectionId);
+            if (collectionSlug) {
+                this.saveCollectionToCacheAsync(collection, collectionSlug, path.join(this.collectionsDir, collectionSlug, METADATA_FILES.collection));
             }
 
             return true;
@@ -1051,6 +1198,11 @@ export class FolderCollectionStore implements ICollectionStore {
             await this.saveFolderToDir(itemPath, item as CollectionFolderItem);
         } else {
             await this.saveRequestToDir(itemPath, item as CollectionRequestItem);
+        }
+
+        const collectionSlug = this.idToSlugMap.get(collectionId);
+        if (collectionSlug) {
+            this.saveCollectionToCacheAsync(collection, collectionSlug, path.join(this.collectionsDir, collectionSlug, METADATA_FILES.collection));
         }
 
         return true;
@@ -1116,6 +1268,13 @@ export class FolderCollectionStore implements ICollectionStore {
                 } else {
                     collection.items.push(itemClone);
                 }
+            }
+
+            this.itemPathIndex.delete(collectionId);
+
+            const collectionSlug = this.idToSlugMap.get(collectionId);
+            if (collectionSlug) {
+                this.saveCollectionToCacheAsync(collection, collectionSlug, path.join(this.collectionsDir, collectionSlug, METADATA_FILES.collection));
             }
 
             return true;
@@ -1197,6 +1356,11 @@ export class FolderCollectionStore implements ICollectionStore {
 
         const collectionPath = path.join(this.collectionsDir, collectionSlug);
 
+        const indexed = this.findIndexedItemPath(collectionId, itemId, collectionPath);
+        if (indexed) {
+            return indexed;
+        }
+
         // Ids are globally unique; slugs are de-duplicated only among siblings, so two items
         // with the same name in different folders share a leaf slug (e.g. "login"). Resolve by
         // id so that only the directory whose metadata id matches is ever updated, regardless
@@ -1223,6 +1387,69 @@ export class FolderCollectionStore implements ICollectionStore {
         }
 
         return searchForItemPath(collectionPath, itemSlug);
+    }
+
+    /**
+     * Resolve an item directory from the in-memory tree using a per-collection
+     * id→path index. The index is derived (no disk I/O) and rebuilt when a
+     * cached path disappears after a move/rename.
+     */
+    private findIndexedItemPath(
+        collectionId: string,
+        itemId: string,
+        collectionPath: string
+    ): string | undefined {
+        const collection = this.cache.get(collectionId);
+        if (!collection) {
+            return undefined;
+        }
+
+        let index = this.itemPathIndex.get(collectionId);
+        if (!index) {
+            index = this.buildItemPathIndex(collection.items, collectionPath);
+            this.itemPathIndex.set(collectionId, index);
+        }
+
+        const indexedPath = index.get(itemId);
+        if (indexedPath && fs.existsSync(indexedPath)) {
+            return indexedPath;
+        }
+
+        if (indexedPath) {
+            // Cached path was moved/renamed on disk — rebuild once from the
+            // current in-memory tree before falling back to a disk search.
+            index = this.buildItemPathIndex(collection.items, collectionPath);
+            this.itemPathIndex.set(collectionId, index);
+            const rebuiltPath = index.get(itemId);
+            if (rebuiltPath && fs.existsSync(rebuiltPath)) {
+                return rebuiltPath;
+            }
+        }
+
+        return undefined;
+    }
+
+    /**
+     * Build the id→directory index for one collection from its in-memory tree.
+     * Uses `idToSlugMap` for each segment, matching the names written on disk.
+     */
+    private buildItemPathIndex(items: CollectionItem[], collectionPath: string): Map<string, string> {
+        const index = new Map<string, string>();
+        const visit = (children: CollectionItem[] | undefined, parentPath: string): void => {
+            for (const item of children || []) {
+                const slug = this.idToSlugMap.get(item.id);
+                if (!slug) {
+                    continue;
+                }
+                const itemPath = path.join(parentPath, slug);
+                index.set(item.id, itemPath);
+                if (item.type === 'folder' && item.items) {
+                    visit(item.items, itemPath);
+                }
+            }
+        };
+        visit(items, collectionPath);
+        return index;
     }
 
     /**
