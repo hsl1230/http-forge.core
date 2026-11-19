@@ -254,9 +254,9 @@ export class FolderCollectionStore implements ICollectionStore {
                 items
             };
 
-            // Build the cache in the background (fire-and-forget) so startup
-            // isn't blocked by the write. The cache makes subsequent loads fast.
-            this.saveCollectionToCacheAsync(collection, slug, metadataPath);
+            // Write the cache so subsequent loads are fast. The write is synchronous
+            // but cheap (~5-15 ms) since the data is already in memory.
+            this.saveCollectionToCache(collection, slug, metadataPath);
 
             return collection;
         } catch (error) {
@@ -313,6 +313,11 @@ export class FolderCollectionStore implements ICollectionStore {
             if (cached.light !== this.lightLoad) {
                 return undefined; // mode mismatch
             }
+            // Guard against structural changes (added/removed items) that
+            // didn't update collection.json mtime (e.g. external edits).
+            if (metadata.order && metadata.order.length !== cached.collection.items.length) {
+                return undefined;
+            }
             // Restore slug maps
             this.slugToIdMap.set(cached.collectionSlug, cached.collection.id);
             this.idToSlugMap.set(cached.collection.id, cached.collectionSlug);
@@ -348,7 +353,7 @@ export class FolderCollectionStore implements ICollectionStore {
      * Write the collection cache asynchronously (fire-and-forget).
      * Uses collection.json's mtime as the freshness key.
      */
-    private saveCollectionToCacheAsync(collection: Collection, collectionSlug: string, metadataPath: string): void {
+    private saveCollectionToCache(collection: Collection, collectionSlug: string, metadataPath: string): void {
         let mtime: number;
         try { mtime = fs.statSync(metadataPath).mtimeMs; } catch { return; }
         try {
@@ -360,7 +365,7 @@ export class FolderCollectionStore implements ICollectionStore {
                 collectionSlug,
                 itemSlugs: this.collectItemSlugs(collection.items)
             });
-            fs.promises.writeFile(cachePath, data, 'utf-8').catch(() => { /* ignore */ });
+            fs.writeFileSync(cachePath, data, 'utf-8');
         } catch { /* ignore */ }
     }
 
@@ -725,7 +730,7 @@ export class FolderCollectionStore implements ICollectionStore {
         // Item directory slugs/order may have changed during a bulk write.
         this.itemPathIndex.delete(collection.id);
         // Update cache in the background (fire-and-forget).
-        this.saveCollectionToCacheAsync(collection, slug, path.join(collectionPath, METADATA_FILES.collection));
+        this.saveCollectionToCache(collection, slug, path.join(collectionPath, METADATA_FILES.collection));
     }
 
     /**
@@ -1125,7 +1130,7 @@ export class FolderCollectionStore implements ICollectionStore {
         }
 
         // Update cache in the background (fire-and-forget).
-        this.saveCollectionToCacheAsync(collection, collectionSlug, path.join(this.collectionsDir, collectionSlug, METADATA_FILES.collection));
+        this.saveCollectionToCache(collection, collectionSlug, path.join(this.collectionsDir, collectionSlug, METADATA_FILES.collection));
     }
 
     /**
@@ -1156,7 +1161,7 @@ export class FolderCollectionStore implements ICollectionStore {
 
             const collectionSlug = this.idToSlugMap.get(collectionId);
             if (collectionSlug) {
-                this.saveCollectionToCacheAsync(collection, collectionSlug, path.join(this.collectionsDir, collectionSlug, METADATA_FILES.collection));
+                this.saveCollectionToCache(collection, collectionSlug, path.join(this.collectionsDir, collectionSlug, METADATA_FILES.collection));
             }
 
             return true;
@@ -1202,7 +1207,7 @@ export class FolderCollectionStore implements ICollectionStore {
 
         const collectionSlug = this.idToSlugMap.get(collectionId);
         if (collectionSlug) {
-            this.saveCollectionToCacheAsync(collection, collectionSlug, path.join(this.collectionsDir, collectionSlug, METADATA_FILES.collection));
+            this.saveCollectionToCache(collection, collectionSlug, path.join(this.collectionsDir, collectionSlug, METADATA_FILES.collection));
         }
 
         return true;
@@ -1274,7 +1279,7 @@ export class FolderCollectionStore implements ICollectionStore {
 
             const collectionSlug = this.idToSlugMap.get(collectionId);
             if (collectionSlug) {
-                this.saveCollectionToCacheAsync(collection, collectionSlug, path.join(this.collectionsDir, collectionSlug, METADATA_FILES.collection));
+                this.saveCollectionToCache(collection, collectionSlug, path.join(this.collectionsDir, collectionSlug, METADATA_FILES.collection));
             }
 
             return true;
