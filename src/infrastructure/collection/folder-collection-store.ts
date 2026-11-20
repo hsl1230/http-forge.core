@@ -76,6 +76,11 @@ export class FolderCollectionStore implements ICollectionStore {
      */
     private itemPathIndex: Map<string, Map<string, string>> = new Map();
     /**
+     * Whether the startup freshness check has already been performed this session.
+     * After the first load, we trust the cache (file watcher handles external changes).
+     */
+    private startupFreshnessChecked = false;
+    /**
      * Directory for serialized collection metadata caches. Lives inside the
      * collections directory as `.cache/` so it is self-contained and already
      * covered by the existing `.gitignore` (`.cache/`).
@@ -211,6 +216,7 @@ export class FolderCollectionStore implements ICollectionStore {
                 }
         }
 
+        this.startupFreshnessChecked = true;
         return collections;
     }
 
@@ -231,7 +237,7 @@ export class FolderCollectionStore implements ICollectionStore {
         }
 
         // Try loading from cache first (avoids reading 1,180+ files on Windows).
-        const cached = this.loadCollectionFromCache(slug, metadataPath, metadata);
+        const cached = this.loadCollectionFromCache(slug, collectionPath, metadata, !this.startupFreshnessChecked);
         if (cached) {
             return cached;
         }
@@ -256,7 +262,7 @@ export class FolderCollectionStore implements ICollectionStore {
 
             // Write the cache so subsequent loads are fast. The write is synchronous
             // but cheap (~5-15 ms) since the data is already in memory.
-            this.saveCollectionToCache(collection, slug, metadataPath);
+            this.saveCollectionToCache(collection, slug, collectionPath);
 
             return collection;
         } catch (error) {
@@ -271,15 +277,12 @@ export class FolderCollectionStore implements ICollectionStore {
     private getCacheDir(): string {
         // Place cache in the forge root's .cache/collections/ (consistent with
         // the existing .http-forge/.cache/ convention and already gitignored).
+        // Do NOT create the directory eagerly — only when writing a cache file.
         const parent = path.dirname(this.collectionsDir);
         const forgeRoot = path.basename(parent) === 'assets'
             ? path.dirname(parent)
             : parent;
-        const dir = path.join(forgeRoot, '.cache', 'collections');
-        if (!fs.existsSync(dir)) {
-            try { fs.mkdirSync(dir, { recursive: true }); } catch { /* ignore */ }
-        }
-        return dir;
+        return path.join(forgeRoot, '.cache', 'collections');
     }
 
     /**
@@ -293,30 +296,25 @@ export class FolderCollectionStore implements ICollectionStore {
      * Try to load a collection from cache. Returns undefined on miss/stale/corrupt.
      * Uses collection.json's mtime as the freshness key.
      */
-    private loadCollectionFromCache(collectionSlug: string, metadataPath: string, metadata: CollectionMetadata): Collection | undefined {
+    private loadCollectionFromCache(collectionSlug: string, collectionPath: string, metadata: CollectionMetadata, checkFreshness: boolean = true): Collection | undefined {
         const cachePath = this.getCachePath(metadata.id);
         if (!fs.existsSync(cachePath)) {
             return undefined;
         }
-        let mtime: number;
-        try {
-            mtime = fs.statSync(metadataPath).mtimeMs;
-        } catch {
-            return undefined;
-        }
         try {
             const raw = fs.readFileSync(cachePath, 'utf-8');
-            const cached = JSON.parse(raw) as { mtime: number; light: boolean; collection: Collection; collectionSlug: string; itemSlugs: Record<string, string> };
-            if (cached.mtime !== mtime) {
-                return undefined; // stale
+            const cached = JSON.parse(raw) as { maxMtime: number; light: boolean; collection: Collection; collectionSlug: string; itemSlugs: Record<string, string> };
+            // Freshness check: compare max mtime of all files in the collection
+            // directory. If any file was modified externally (while VS Code was
+            // closed), the max mtime will be newer and the cache is stale.
+            if (checkFreshness && !this.startupFreshnessChecked) {
+                const currentMaxMtime = this.computeMaxMtime(collectionPath);
+                if (cached.maxMtime !== currentMaxMtime) {
+                    return undefined; // stale
+                }
             }
             if (cached.light !== this.lightLoad) {
                 return undefined; // mode mismatch
-            }
-            // Guard against structural changes (added/removed items) that
-            // didn't update collection.json mtime (e.g. external edits).
-            if (metadata.order && metadata.order.length !== cached.collection.items.length) {
-                return undefined;
             }
             // Restore slug maps
             this.slugToIdMap.set(cached.collectionSlug, cached.collection.id);
@@ -353,13 +351,16 @@ export class FolderCollectionStore implements ICollectionStore {
      * Write the collection cache asynchronously (fire-and-forget).
      * Uses collection.json's mtime as the freshness key.
      */
-    private saveCollectionToCache(collection: Collection, collectionSlug: string, metadataPath: string): void {
-        let mtime: number;
-        try { mtime = fs.statSync(metadataPath).mtimeMs; } catch { return; }
+    private saveCollectionToCache(collection: Collection, collectionSlug: string, collectionPath: string): void {
         try {
-            const cachePath = this.getCachePath(collection.id);
+            const cacheDir = this.getCacheDir();
+            if (!fs.existsSync(cacheDir)) {
+                fs.mkdirSync(cacheDir, { recursive: true });
+            }
+            const cachePath = path.join(cacheDir, `${collection.id}.cache.json`);
+            const maxMtime = this.computeMaxMtime(collectionPath);
             const data = JSON.stringify({
-                mtime,
+                maxMtime,
                 light: this.lightLoad,
                 collection,
                 collectionSlug,
@@ -367,6 +368,32 @@ export class FolderCollectionStore implements ICollectionStore {
             });
             fs.writeFileSync(cachePath, data, 'utf-8');
         } catch { /* ignore */ }
+    }
+
+    /**
+     * Compute the maximum mtime of all files in a collection directory tree.
+     * Used as a freshness key for the cache: if any file was modified externally,
+     * the max mtime will be newer than the cached value.
+     */
+    private computeMaxMtime(dir: string): number {
+        let max = 0;
+        try {
+            const entries = fs.readdirSync(dir, { withFileTypes: true });
+            for (const entry of entries) {
+                if (entry.name === '.cache') continue;
+                const fullPath = path.join(dir, entry.name);
+                try {
+                    if (entry.isDirectory()) {
+                        const subMax = this.computeMaxMtime(fullPath);
+                        if (subMax > max) max = subMax;
+                    } else {
+                        const stat = fs.statSync(fullPath);
+                        if (stat.mtimeMs > max) max = stat.mtimeMs;
+                    }
+                } catch { /* ignore */ }
+            }
+        } catch { /* ignore */ }
+        return max;
     }
 
     /**
@@ -509,6 +536,18 @@ export class FolderCollectionStore implements ICollectionStore {
     public loadRequestDetail(collectionId: string, requestId: string): CollectionItem | undefined {
         const light = this.findItemById(this.cache.get(collectionId)?.items || [], requestId) as CollectionRequestItem | undefined;
         if (light && !isLightLoaded(light)) {
+            // Already hydrated — but re-read scripts from disk in case the
+            // script files changed externally (e.g. edited in VS Code).
+            // Only update if the scripts directory still exists; this preserves
+            // the idempotency contract (cached data survives file deletion).
+            const itemPath = this.findItemPath(collectionId, requestId);
+            if (itemPath && fs.existsSync(itemPath)) {
+                const scriptsDir = path.join(itemPath, SCRIPTS_DIR);
+                if (fs.existsSync(scriptsDir)) {
+                    const scripts = this.loadScriptsFromDir(scriptsDir);
+                    if (scripts) light.scripts = scripts;
+                }
+            }
             return light;
         }
         const itemPath = this.findItemPath(collectionId, requestId);
@@ -730,7 +769,7 @@ export class FolderCollectionStore implements ICollectionStore {
         // Item directory slugs/order may have changed during a bulk write.
         this.itemPathIndex.delete(collection.id);
         // Update cache in the background (fire-and-forget).
-        this.saveCollectionToCache(collection, slug, path.join(collectionPath, METADATA_FILES.collection));
+        this.saveCollectionToCache(collection, slug, collectionPath);
     }
 
     /**
@@ -1130,7 +1169,7 @@ export class FolderCollectionStore implements ICollectionStore {
         }
 
         // Update cache in the background (fire-and-forget).
-        this.saveCollectionToCache(collection, collectionSlug, path.join(this.collectionsDir, collectionSlug, METADATA_FILES.collection));
+        this.saveCollectionToCache(collection, collectionSlug, path.join(this.collectionsDir, collectionSlug));
     }
 
     /**
@@ -1161,7 +1200,7 @@ export class FolderCollectionStore implements ICollectionStore {
 
             const collectionSlug = this.idToSlugMap.get(collectionId);
             if (collectionSlug) {
-                this.saveCollectionToCache(collection, collectionSlug, path.join(this.collectionsDir, collectionSlug, METADATA_FILES.collection));
+                this.saveCollectionToCache(collection, collectionSlug, path.join(this.collectionsDir, collectionSlug));
             }
 
             return true;
@@ -1207,7 +1246,7 @@ export class FolderCollectionStore implements ICollectionStore {
 
         const collectionSlug = this.idToSlugMap.get(collectionId);
         if (collectionSlug) {
-            this.saveCollectionToCache(collection, collectionSlug, path.join(this.collectionsDir, collectionSlug, METADATA_FILES.collection));
+            this.saveCollectionToCache(collection, collectionSlug, path.join(this.collectionsDir, collectionSlug));
         }
 
         return true;
@@ -1279,7 +1318,7 @@ export class FolderCollectionStore implements ICollectionStore {
 
             const collectionSlug = this.idToSlugMap.get(collectionId);
             if (collectionSlug) {
-                this.saveCollectionToCache(collection, collectionSlug, path.join(this.collectionsDir, collectionSlug, METADATA_FILES.collection));
+                this.saveCollectionToCache(collection, collectionSlug, path.join(this.collectionsDir, collectionSlug));
             }
 
             return true;

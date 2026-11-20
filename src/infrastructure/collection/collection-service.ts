@@ -363,14 +363,28 @@ export class CollectionService implements ICollectionService {
         }
     }
 
-    private loadCollections(invalidateCache: boolean = false): void {
+    private loadCollections(invalidateCache: boolean = false, changedPath?: string): void {
         if (invalidateCache && this.loader instanceof FolderCollectionStore) {
             try {
-                const cacheDir = (this.loader as any).getCacheDir?.();
-                if (cacheDir && fs.existsSync(cacheDir)) {
-                    for (const f of fs.readdirSync(cacheDir)) {
-                        if (f.endsWith('.cache.json')) {
-                            try { fs.unlinkSync(path.join(cacheDir, f)); } catch { /* ignore */ }
+                // Only invalidate the cache for the collection affected by the
+                // changed file, not all collections.
+                if (changedPath) {
+                    const rel = path.relative(this.collectionsDir, changedPath);
+                    const collectionSlug = rel.split(path.sep)[0];
+                    if (collectionSlug && collectionSlug !== '.' && !collectionSlug.startsWith('..')) {
+                        const collectionId = (this.loader as any).getIdBySlug?.(collectionSlug);
+                        if (collectionId) {
+                            (this.loader as any).invalidateCollectionCache?.(collectionId);
+                        }
+                    }
+                } else {
+                    // No specific path — invalidate all caches (safe fallback).
+                    const cacheDir = (this.loader as any).getCacheDir?.();
+                    if (cacheDir && fs.existsSync(cacheDir)) {
+                        for (const f of fs.readdirSync(cacheDir)) {
+                            if (f.endsWith('.cache.json')) {
+                                try { fs.unlinkSync(path.join(cacheDir, f)); } catch { /* ignore */ }
+                            }
                         }
                     }
                 }
@@ -427,7 +441,7 @@ export class CollectionService implements ICollectionService {
                 this.selfWritePending = false;
                 if (!wasSelf) {
                     // External change (e.g. git pull, another process) — reload from disk.
-                    this.loadCollections(true);
+                    this.loadCollections(true, changedPath);
                 }
                 // Always notify UI so tree views and panels refresh with current state.
                 this.onCollectionsChanged?.();
@@ -538,6 +552,12 @@ export class CollectionService implements ICollectionService {
             const detail = this.loader.loadRequestDetail?.(collectionId, requestId) as CollectionRequestItem | undefined;
             markDetailLoaded(detail ?? found);
             if (detail) return detail;
+        }
+        // Even for hydrated items, re-read scripts from disk so externally
+        // edited script files are picked up during execution.
+        if (this.loader.loadRequestDetail) {
+            const refreshed = this.loader.loadRequestDetail(collectionId, requestId) as CollectionRequestItem | undefined;
+            if (refreshed) return refreshed;
         }
         return found;
     }
@@ -924,8 +944,9 @@ export class CollectionService implements ICollectionService {
         requestId: string,
         phase: 'pre-request' | 'post-response'
     ): string | undefined {
-        // Via findRequest so light-loaded items are enriched on demand.
-        const req = this.findRequest(collectionId, requestId);
+        // Re-read scripts from disk so externally edited script files are picked up.
+        const detail = this.loader.loadRequestDetail?.(collectionId, requestId) as CollectionRequestItem | undefined;
+        const req = detail ?? this.findRequest(collectionId, requestId);
         if (!req) return undefined;
         return phase === 'pre-request' ? req.scripts?.preRequest : req.scripts?.postResponse;
     }
