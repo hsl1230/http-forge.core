@@ -63,6 +63,7 @@ export class ScriptExecutor implements IScriptExecutor {
     public beginRun(): void {
         if (this.runDepth === 0) {
             this.runModuleLoader = createModuleLoader(this.modulePaths);
+            this.secretRegistry?.clearCache();
         }
         this.runDepth++;
     }

@@ -27,6 +27,7 @@ export interface ISecretResolver {
     /**
      * Resolve a secret by its provider-relative path.
      * @param path  The path after the provider prefix, e.g. "myapp/prod/apiKey"
+     *              or "myapp/prod/apiKey.nested.key" for JSON path traversal.
      * @returns     The plaintext secret value, or undefined if not found
      */
     resolve(path: string): Promise<string | undefined>;
@@ -35,6 +36,11 @@ export interface ISecretResolver {
      * Human-readable provider name, e.g. "aws", "azure", "vault", "1password"
      */
     readonly providerName: string;
+
+    /**
+     * Clear the in-memory cache for this resolver (optional).
+     */
+    clearCache?(): void;
 }
 
 // ============================================================

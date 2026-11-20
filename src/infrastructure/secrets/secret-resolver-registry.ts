@@ -28,6 +28,7 @@ import { DopplerResolver } from './doppler-resolver';
 import { GcpSecretResolver } from './gcp-secret-resolver';
 import { HashiCorpVaultResolver } from './hashicorp-vault-resolver';
 import { OnePasswordResolver } from './onepassword-resolver';
+import { BaseSecretResolver } from './base-secret-resolver';
 
 export class SecretResolverRegistry {
     private readonly resolvers: Map<string, ISecretResolver> = new Map();
@@ -115,6 +116,16 @@ export class SecretResolverRegistry {
             result[k] = v;
         }
         return result;
+    }
+
+    /**
+     * Clear all cached secret values across all providers.
+     * Called at the start of each run so stale secrets aren't reused.
+     */
+    clearCache(): void {
+        for (const resolver of this.resolvers.values()) {
+            resolver.clearCache?.();
+        }
     }
 
     /** Whether any providers are configured */
@@ -280,12 +291,18 @@ export class SecretResolverRegistry {
             );
         }
 
-        return {
-            providerName: typeof resolver.providerName === 'string' && resolver.providerName.trim()
-                ? resolver.providerName
-                : alias,
-            resolve: async (path: string) => resolver.resolve(path),
-        };
+        const providerName = typeof resolver.providerName === 'string' && resolver.providerName.trim()
+            ? resolver.providerName
+            : alias;
+        // Wrap in BaseSecretResolver so caching + JSON path resolution apply
+        // uniformly to custom providers.
+        class CustomAdapter extends BaseSecretResolver {
+            readonly providerName = providerName;
+            protected async fetchRaw(secretName: string, _jsonPath?: string): Promise<string | undefined> {
+                return resolver.resolve(secretName);
+            }
+        }
+        return new CustomAdapter({ cacheTtlMs: (config.options as any)?.cacheTtlMs });
     }
 
     /**

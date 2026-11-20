@@ -16,7 +16,8 @@
 
 import type { ClientRequest, IncomingMessage, RequestOptions } from 'http';
 import * as https from 'https';
-import type { DopplerConfig, ISecretResolver } from '../../types/secret-resolver';
+import type { DopplerConfig } from '../../types/secret-resolver';
+import { BaseSecretResolver } from './base-secret-resolver';
 
 const REQUEST_TIMEOUT_MS = 10000;
 
@@ -26,20 +27,21 @@ type DopplerRequestFn = (
     callback: (res: IncomingMessage) => void
 ) => ClientRequest;
 
-export class DopplerResolver implements ISecretResolver {
+export class DopplerResolver extends BaseSecretResolver {
     readonly providerName = 'doppler';
 
     private readonly token: string | undefined;
     private readonly requestFn: DopplerRequestFn;
 
     constructor(config: DopplerConfig, requestFn: DopplerRequestFn = https.request as DopplerRequestFn) {
+        super({ cacheTtlMs: (config as any)?.cacheTtlMs });
         this.token = config.serviceToken || process.env['DOPPLER_TOKEN'];
         this.requestFn = requestFn;
     }
 
-    async resolve(path: string): Promise<string | undefined> {
+    protected async fetchRaw(secretName: string, _jsonPath?: string): Promise<string | undefined> {
         // path is the secret name, e.g. "API_KEY"
-        const secretName = path.trim().toUpperCase();
+        const name = secretName.trim().toUpperCase();
 
         const token = this.token;
         if (!token) {
@@ -49,7 +51,7 @@ export class DopplerResolver implements ISecretResolver {
             );
         }
 
-        const url = `https://api.doppler.com/v3/configs/config/secret?name=${encodeURIComponent(secretName)}`;
+        const url = `https://api.doppler.com/v3/configs/config/secret?name=${encodeURIComponent(name)}`;
 
         return new Promise<string | undefined>((resolve, reject) => {
             const req = this.requestFn(
@@ -74,7 +76,7 @@ export class DopplerResolver implements ISecretResolver {
                         }
                         if (res.statusCode !== 200) {
                             reject(new Error(
-                                `[HTTP Forge] Doppler API returned ${res.statusCode} for secret "${secretName}": ${body}`
+                                `[HTTP Forge] Doppler API returned ${res.statusCode} for secret "${name}": ${body}`
                             ));
                             return;
                         }
@@ -84,7 +86,7 @@ export class DopplerResolver implements ISecretResolver {
                             const computed = json?.value?.computed;
                             resolve(computed !== undefined && computed !== null ? String(computed) : undefined);
                         } catch {
-                            reject(new Error(`[HTTP Forge] Doppler API returned non-JSON response for secret "${secretName}"`));
+                            reject(new Error(`[HTTP Forge] Doppler API returned non-JSON response for secret "${name}"`));
                         }
                     });
                 }

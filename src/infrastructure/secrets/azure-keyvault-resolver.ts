@@ -11,9 +11,10 @@
  * Config requires vaultUrl, e.g. "https://myvault.vault.azure.net"
  */
 
-import type { AzureKeyVaultConfig, ISecretResolver } from '../../types/secret-resolver';
+import type { AzureKeyVaultConfig } from '../../types/secret-resolver';
+import { BaseSecretResolver } from './base-secret-resolver';
 
-export class AzureKeyVaultResolver implements ISecretResolver {
+export class AzureKeyVaultResolver extends BaseSecretResolver {
     readonly providerName = 'azure';
 
     private readonly vaultUrl: string;
@@ -21,6 +22,7 @@ export class AzureKeyVaultResolver implements ISecretResolver {
     private client?: any;
 
     constructor(config: AzureKeyVaultConfig, moduleRequire?: (name: string) => any) {
+        super({ cacheTtlMs: (config as any)?.cacheTtlMs });
         // Treat empty string (zero-config default) as "fall back to env var"
         const url = (config.vaultUrl || process.env['AZURE_KEYVAULT_URL']) ?? '';
         this.vaultUrl = url.replace(/\/$/, '');
@@ -28,16 +30,16 @@ export class AzureKeyVaultResolver implements ISecretResolver {
         this.moduleRequire = moduleRequire ?? ((name: string) => require(name));
     }
 
-    async resolve(path: string): Promise<string | undefined> {
+    protected async fetchRaw(secretName: string, _jsonPath?: string): Promise<string | undefined> {
         if (!this.vaultUrl) {
             throw new Error(
                 '[HTTP Forge] Azure Key Vault resolver: no vault URL configured. ' +
                 'Set secrets.providers.<alias>.vaultUrl or the AZURE_KEYVAULT_URL env var.'
             );
         }
-        // path may be "secretName" or "secretName/version"
-        const parts = path.split('/');
-        const secretName = parts[0];
+        // secretName may be "name" or "name/version"
+        const parts = secretName.split('/');
+        const name = parts[0];
         const version = parts[1]; // undefined → latest
 
         try {
@@ -47,7 +49,7 @@ export class AzureKeyVaultResolver implements ISecretResolver {
                 const { DefaultAzureCredential } = this.moduleRequire('@azure/identity');
                 this.client = new SecretClient(this.vaultUrl, new DefaultAzureCredential());
             }
-            const secret = await this.client.getSecret(secretName, version ? { version } : {});
+            const secret = await this.client.getSecret(name, version ? { version } : {});
             return secret.value;
         } catch (err: any) {
             if (err?.name === 'MODULE_NOT_FOUND' || err?.code === 'MODULE_NOT_FOUND') {

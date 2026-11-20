@@ -5,7 +5,15 @@ All notable changes to @http-forge/core will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## 1.0.7 - 2026-11-18
+## 1.0.7 - 2026-11-20
+
+### Added
+
+- Universal JSON secret bundling and caching across all secret providers (GCP, AWS, Azure, Vault, 1Password, Doppler, custom).
+- New `BaseSecretResolver` abstract class with TTL-based caching of raw secret strings and universal JSON path resolution via dot-notation (e.g. `{{secret:provider/secret-name.db.password}}`), including nested objects and array indices (`items[0].name`).
+- Legacy `#field` syntax is still supported for backward compatibility.
+- Providers now only implement `fetchRaw()`; all parsing, traversal, and caching live in the shared base class.
+- `clearCache()` method on resolvers; cache is cleared automatically at the start of each run (request, collection, or suite).
 
 ### Fixed
 

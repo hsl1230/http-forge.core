@@ -11,9 +11,10 @@
  *               {{secret:aws/myapp/prod/api-key#field}}  (JSON secret field)
  */
 
-import type { AwsSecretsConfig, ISecretResolver } from '../../types/secret-resolver';
+import type { AwsSecretsConfig } from '../../types/secret-resolver';
+import { BaseSecretResolver } from './base-secret-resolver';
 
-export class AwsSecretResolver implements ISecretResolver {
+export class AwsSecretResolver extends BaseSecretResolver {
     readonly providerName = 'aws';
 
     private readonly region: string | undefined;
@@ -22,17 +23,18 @@ export class AwsSecretResolver implements ISecretResolver {
     private sdk?: { client: any; GetSecretValueCommand: any };
 
     constructor(config: AwsSecretsConfig, moduleRequire?: (name: string) => any) {
+        super({ cacheTtlMs: (config as any)?.cacheTtlMs });
         this.region = config.region ?? process.env['AWS_DEFAULT_REGION'] ?? process.env['AWS_REGION'];
         this.profile = config.profile || undefined;
         // eslint-disable-next-line @typescript-eslint/no-require-imports
         this.moduleRequire = moduleRequire ?? ((name: string) => require(name));
     }
 
-    async resolve(path: string): Promise<string | undefined> {
-        // path may be "secretId" or "secretId#<jsonFieldName>"
-        const hashIdx = path.lastIndexOf('#');
-        const secretId = hashIdx >= 0 ? path.slice(0, hashIdx) : path;
-        const jsonField = hashIdx >= 0 ? path.slice(hashIdx + 1) : undefined;
+    protected async fetchRaw(secretId: string): Promise<string | undefined> {
+        // secretId may be "secretId" or "secretId#<jsonFieldName>" (legacy)
+        const hashIdx = secretId.lastIndexOf('#');
+        const id = hashIdx >= 0 ? secretId.slice(0, hashIdx) : secretId;
+        const jsonField = hashIdx >= 0 ? secretId.slice(hashIdx + 1) : undefined;
 
         try {
             // Dynamic require so the SDK is optional at compile time
@@ -44,7 +46,7 @@ export class AwsSecretResolver implements ISecretResolver {
                 };
             }
             const response = await this.sdk.client.send(
-                new this.sdk.GetSecretValueCommand({ SecretId: secretId })
+                new this.sdk.GetSecretValueCommand({ SecretId: id })
             );
 
             const raw: string | undefined = response.SecretString ?? (

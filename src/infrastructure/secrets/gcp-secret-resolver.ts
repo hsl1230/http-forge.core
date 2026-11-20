@@ -12,9 +12,10 @@
  * projectId falls back to GOOGLE_CLOUD_PROJECT / GCLOUD_PROJECT env vars.
  */
 
-import type { GcpSecretsConfig, ISecretResolver } from '../../types/secret-resolver';
+import type { GcpSecretsConfig } from '../../types/secret-resolver';
+import { BaseSecretResolver } from './base-secret-resolver';
 
-export class GcpSecretResolver implements ISecretResolver {
+export class GcpSecretResolver extends BaseSecretResolver {
     readonly providerName = 'gcp';
 
     private readonly projectId: string | undefined;
@@ -22,6 +23,7 @@ export class GcpSecretResolver implements ISecretResolver {
     private client?: any;
 
     constructor(config: GcpSecretsConfig, moduleRequire?: (name: string) => any) {
+        super({ cacheTtlMs: (config as any)?.cacheTtlMs });
         this.projectId =
             config.projectId ||
             process.env['GOOGLE_CLOUD_PROJECT'] ||
@@ -31,10 +33,10 @@ export class GcpSecretResolver implements ISecretResolver {
         this.moduleRequire = moduleRequire ?? ((name: string) => require(name));
     }
 
-    async resolve(path: string): Promise<string | undefined> {
-        // path: "secretName" or "secretName/versions/<version>"
-        const parts = path.split('/');
-        const secretName = parts[0];
+    protected async fetchRaw(secretName: string, _jsonPath?: string): Promise<string | undefined> {
+        // secretName may be "name" or "name/versions/version"
+        const parts = secretName.split('/');
+        const name = parts[0];
         const version =
             parts.length === 1
                 ? 'latest'
@@ -42,12 +44,13 @@ export class GcpSecretResolver implements ISecretResolver {
                     ? parts[2]
                     : undefined;
 
-        if (!secretName || version === undefined) {
+        if (!name || version === undefined) {
             throw new Error(
-                `[HTTP Forge] GCP secret path "${path}" must be ` +
+                `[HTTP Forge] GCP secret path "${secretName}" must be ` +
                 '"<secretName>" or "<secretName>/versions/<version>".'
             );
         }
+        const secretNameFinal = name;
 
         if (!this.projectId) {
             throw new Error(
@@ -61,7 +64,7 @@ export class GcpSecretResolver implements ISecretResolver {
                 const { SecretManagerServiceClient } = this.moduleRequire('@google-cloud/secret-manager');
                 this.client = new SecretManagerServiceClient();
             }
-            const name = `projects/${this.projectId}/secrets/${secretName}/versions/${version}`;
+            const name = `projects/${this.projectId}/secrets/${secretNameFinal}/versions/${version}`;
             const [response] = await this.client.accessSecretVersion({ name });
             const payload = response.payload?.data;
             if (!payload) return undefined;

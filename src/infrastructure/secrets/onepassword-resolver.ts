@@ -22,7 +22,8 @@
 
 import { execFile } from 'child_process';
 import { promisify } from 'util';
-import type { ISecretResolver, OnePasswordConfig } from '../../types/secret-resolver';
+import type { OnePasswordConfig } from '../../types/secret-resolver';
+import { BaseSecretResolver } from './base-secret-resolver';
 
 const execFileAsync = promisify(execFile);
 
@@ -35,7 +36,7 @@ type ExecFileLike = (
 const NOT_FOUND_PATTERN = /not found|isn't an item|is not an item|no item matched|could not find/i;
 const AUTH_FAILURE_PATTERN = /not signed in|sign in|authentication|authorization|unauthorized/i;
 
-export class OnePasswordResolver implements ISecretResolver {
+export class OnePasswordResolver extends BaseSecretResolver {
     readonly providerName = '1password';
 
     private readonly defaultVault: string | undefined;
@@ -50,6 +51,7 @@ export class OnePasswordResolver implements ISecretResolver {
         moduleRequire?: (name: string) => any,
         execFileFn: ExecFileLike = execFileAsync as ExecFileLike
     ) {
+        super({ cacheTtlMs: (config as any)?.cacheTtlMs });
         this.defaultVault = config.vault;
         this.account = config.account;
         // eslint-disable-next-line @typescript-eslint/no-require-imports
@@ -57,11 +59,11 @@ export class OnePasswordResolver implements ISecretResolver {
         this.execFileFn = execFileFn;
     }
 
-    async resolve(path: string): Promise<string | undefined> {
+    protected async fetchRaw(secretName: string, _jsonPath?: string): Promise<string | undefined> {
         // Path format (depending on whether config.vault is set):
         //   With default vault: "<item>/<field>"  → vault/item/field
         //   Without:            "<vault>/<item>/<field>"
-        const parts = path.split('/');
+        const parts = secretName.split('/');
 
         let vault: string;
         let item: string;
@@ -70,7 +72,7 @@ export class OnePasswordResolver implements ISecretResolver {
         if (this.defaultVault) {
             if (parts.length < 2) {
                 throw new Error(
-                    `[HTTP Forge] 1Password path "${path}" must be "<item>/<field>" when vault is set in config.`
+                    `[HTTP Forge] 1Password path "${secretName}" must be "<item>/<field>" when vault is set in config.`
                 );
             }
             vault = this.defaultVault;
@@ -79,7 +81,7 @@ export class OnePasswordResolver implements ISecretResolver {
         } else {
             if (parts.length < 3) {
                 throw new Error(
-                    `[HTTP Forge] 1Password path "${path}" must be "<vault>/<item>/<field>".`
+                    `[HTTP Forge] 1Password path "${secretName}" must be "<vault>/<item>/<field>".`
                 );
             }
             vault = parts[0];
