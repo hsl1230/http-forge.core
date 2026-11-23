@@ -543,22 +543,13 @@ export class CollectionService implements ICollectionService {
         }
         const found = this.findItemRecursive(collection.items, requestId) as CollectionRequestItem | undefined;
         if (!found) return undefined;
-        // Enrich on demand. Light-loaded items always need hydration. Items that
-        // are already marked detailed but still lack a usable body (for example
-        // after a lazy reload or an externally added body.json) are also
-        // re-hydrated so request execution and editors see the current body.
-        const needsHydration = isLightLoaded(found) || requestNeedsBodyHydration(found.body);
-        if (needsHydration) {
-            const detail = this.loader.loadRequestDetail?.(collectionId, requestId) as CollectionRequestItem | undefined;
-            markDetailLoaded(detail ?? found);
-            if (detail) return detail;
+        // Always call loadRequestDetail to ensure scripts are fresh (re-read from disk).
+        const detail = this.loader.loadRequestDetail?.(collectionId, requestId) as CollectionRequestItem | undefined;
+        if (detail) {
+            markDetailLoaded(detail);
+            return detail;
         }
-        // Even for hydrated items, re-read scripts from disk so externally
-        // edited script files are picked up during execution.
-        if (this.loader.loadRequestDetail) {
-            const refreshed = this.loader.loadRequestDetail(collectionId, requestId) as CollectionRequestItem | undefined;
-            if (refreshed) return refreshed;
-        }
+        markDetailLoaded(found);
         return found;
     }
 
@@ -646,7 +637,7 @@ export class CollectionService implements ICollectionService {
             }
             if (item.type === 'folder' && item.items) {
                 const found = this.findItemRecursive(item.items, id);
-                if (found) return found;
+                if (found) return found; // MARKER_UNIQ_12345
             }
         }
         return undefined;
