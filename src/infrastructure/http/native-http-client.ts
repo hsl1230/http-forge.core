@@ -24,10 +24,12 @@ import * as tls from 'tls';
 import { URL } from 'url';
 import * as zlib from 'zlib';
 import { IHttpClient } from '../../types/platform';
+import { IConsoleService } from '../../types/console-service';
 import { HttpRequest, HttpResponse, RequestSettings, TlsCertificateMapping, TlsSettings } from '../../types/types';
 import { ProxyConfig } from '../config/config.interface';
 import { ParsedCookie } from '../cookie/interfaces';
 import { sanitizeHeaders as sanitizeAllHeaders } from './header-utils';
+import type { SecretResolverRegistry } from '../secrets/secret-resolver-registry';
 
 /**
  * Default request settings
@@ -69,6 +71,16 @@ export type ProxySource =
     | (() => ProxyConfig | null | undefined);
 
 /**
+ * Source of the secret resolver registry for {@link NodeHttpClient}.
+ * May be a provider function for live config reloads.
+ */
+export type SecretRegistrySource =
+    | SecretResolverRegistry
+    | null
+    | undefined
+    | (() => SecretResolverRegistry | null | undefined);
+
+/**
  * Native HTTP client using Node.js http/https modules
  * 
  * Implementation extracted 100% from plugin's HttpRequestService.executeInternal
@@ -76,10 +88,18 @@ export type ProxySource =
 export class NodeHttpClient implements IHttpClient {
     private readonly resolveDefaults: () => Required<RequestSettings>;
     private readonly resolveProxy: () => ProxyConfig | null | undefined;
+    private readonly resolveSecretRegistry: () => SecretResolverRegistry | null | undefined;
+    private readonly resolveConsole: () => IConsoleService | null | undefined;
     private version: string;
     private readonly basePath: string;
 
-    constructor(defaultSettings?: RequestSettingsSource, basePath: string = process.cwd(), proxySource?: ProxySource) {
+    constructor(
+        defaultSettings?: RequestSettingsSource,
+        basePath: string = process.cwd(),
+        proxySource?: ProxySource,
+        secretRegistrySource?: SecretRegistrySource,
+        consoleServiceSource?: (() => IConsoleService | null | undefined)
+    ) {
         if (typeof defaultSettings === 'function') {
             // Resolve on every request so live config changes (e.g. added host
             // certificates) take effect without recreating the client.
@@ -101,6 +121,20 @@ export class NodeHttpClient implements IHttpClient {
             this.resolveProxy = proxySource;
         } else {
             this.resolveProxy = () => proxySource;
+        }
+
+        // Secret resolver registry provider (for TLS cert/key secrets)
+        if (typeof secretRegistrySource === 'function') {
+            this.resolveSecretRegistry = secretRegistrySource;
+        } else {
+            this.resolveSecretRegistry = () => secretRegistrySource;
+        }
+
+        // Console service provider (for logging)
+        if (typeof consoleServiceSource === 'function') {
+            this.resolveConsole = consoleServiceSource;
+        } else {
+            this.resolveConsole = () => consoleServiceSource;
         }
 
         // Read version from package.json for User-Agent header
@@ -225,28 +259,41 @@ export class NodeHttpClient implements IHttpClient {
                 rejectUnauthorized: settings.strictSSL
             };
 
-            const ca = this.readOptionalFile(tlsSettings.caPath, 'CA certificate');
+            const ca = await this.readOptionalFile(tlsSettings.caPath, 'CA certificate');
             if (ca) {
                 agentOptions.ca = ca;
             }
 
-            const cert = this.readOptionalFile(tlsSettings.certPath, 'client certificate');
+            const cert = await this.readOptionalFile(tlsSettings.certPath, 'client certificate');
             if (cert) {
                 agentOptions.cert = cert;
             }
 
-            const key = this.readOptionalFile(tlsSettings.keyPath, 'client private key');
+            const key = await this.readOptionalFile(tlsSettings.keyPath, 'client private key');
             if (key) {
                 agentOptions.key = key;
             }
 
-            const pfx = this.readOptionalFile(tlsSettings.pfxPath, 'client pfx');
+            const pfx = await this.readOptionalFile(tlsSettings.pfxPath, 'client pfx');
             if (pfx) {
                 agentOptions.pfx = pfx;
             }
 
             if (tlsSettings.passphrase) {
-                agentOptions.passphrase = tlsSettings.passphrase;
+                // Resolve secret tokens in passphrase too
+                const passphraseMatch = tlsSettings.passphrase.match(/\{\{secret:([^}]+)\}\}/);
+                if (passphraseMatch && this.resolveSecretRegistry()) {
+                    try {
+                        const tokens = await this.resolveSecretRegistry()!.resolveSecretTokens(tlsSettings.passphrase);
+                        const value = Object.values(tokens)[0];
+                        if (value) agentOptions.passphrase = value;
+                        else agentOptions.passphrase = tlsSettings.passphrase;
+                    } catch {
+                        agentOptions.passphrase = tlsSettings.passphrase;
+                    }
+                } else {
+                    agentOptions.passphrase = tlsSettings.passphrase;
+                }
             }
 
             if (tlsSettings.servername) {
@@ -288,7 +335,7 @@ export class NodeHttpClient implements IHttpClient {
                 } else {
                     const tlsSettings = this.resolveTlsSettings(url, settings);
                     const agentOptions: https.AgentOptions = { rejectUnauthorized: settings.strictSSL };
-                    const ca = this.readOptionalFile(tlsSettings.caPath, 'CA certificate');
+                    const ca = await this.readOptionalFile(tlsSettings.caPath, 'CA certificate');
                     if (ca) { agentOptions.ca = ca; }
                     (requestOptions as https.RequestOptions).agent = new https.Agent(agentOptions);
                 }
@@ -587,8 +634,28 @@ export class NodeHttpClient implements IHttpClient {
         return h === hostPattern;
     }
 
-    private readOptionalFile(filePath: string | undefined, label: string): Buffer | undefined {
+    private async readOptionalFile(filePath: string | undefined, label: string): Promise<Buffer | undefined> {
         if (!filePath) {
+            return undefined;
+        }
+
+        // Support {{secret:...}} tokens in cert/key/ca/pfx paths. The resolved
+        // value is treated as inline PEM/binary content (no file read).
+        const secretMatch = filePath.match(/\{\{secret:([^}]+)\}\}/);
+        if (secretMatch) {
+            const registry = this.resolveSecretRegistry?.();
+            if (registry) {
+                try {
+                    const tokens = await registry.resolveSecretTokens(filePath);
+                    const value = Object.values(tokens)[0];
+                    if (value) return Buffer.from(value, 'utf-8');
+                } catch (err: any) {
+                    const msg = `[NodeHttpClient] Failed to resolve secret for ${label}: ${err?.message ?? err}`;
+                    const consoleSvc = this.resolveConsole?.();
+                    if (consoleSvc) consoleSvc.warn(msg, 'NodeHttpClient');
+                    else console.warn(msg);
+                }
+            }
             return undefined;
         }
 

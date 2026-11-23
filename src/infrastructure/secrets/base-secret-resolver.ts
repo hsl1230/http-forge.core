@@ -21,6 +21,9 @@ export interface SecretCacheEntry {
     expiresAt: number;
 }
 
+const FAILED_SENTINEL = '__FAILED__';
+const FAILURE_TTL_MS = 30 * 1000; // 30 seconds for failures
+
 export abstract class BaseSecretResolver {
     readonly abstract providerName: string;
 
@@ -39,8 +42,6 @@ export abstract class BaseSecretResolver {
      */
     async resolve(secretPath: string): Promise<string | undefined> {
         // Split into secret name + optional JSON path using dot-notation.
-        // The '#' separator (legacy, provider-specific) is NOT split here —
-        // providers handle it internally in fetchRaw() for backward compat.
         let secretName = secretPath;
         let jsonPath: string | undefined;
 
@@ -52,18 +53,33 @@ export abstract class BaseSecretResolver {
 
         // Cache lookup (by secret name, so multiple paths share one fetch)
         const cached = this.cache.get(secretName);
-        let raw: string | undefined;
         if (cached && cached.expiresAt > Date.now()) {
-            raw = cached.value;
-        } else {
+            if (cached.value === FAILED_SENTINEL) return undefined;
+            const raw = cached.value;
+            return this.resolvePath(raw, jsonPath);
+        }
+
+        let raw: string | undefined;
+        try {
             raw = await this.fetchRaw(secretName, jsonPath);
-            if (raw !== undefined) {
-                this.cache.set(secretName, { value: raw, expiresAt: Date.now() + this.ttlMs });
-            }
+        } catch (err) {
+            // Cache the failure (short TTL) to avoid hammering the provider
+            // on every request when credentials are missing or the secret
+            // doesn't exist.
+            this.cache.set(secretName, { value: FAILED_SENTINEL, expiresAt: Date.now() + FAILURE_TTL_MS });
+            throw err;
+        }
+        if (raw !== undefined) {
+            this.cache.set(secretName, { value: raw, expiresAt: Date.now() + this.ttlMs });
+        } else {
+            this.cache.set(secretName, { value: FAILED_SENTINEL, expiresAt: Date.now() + FAILURE_TTL_MS });
         }
 
         if (raw === undefined) return undefined;
+        return this.resolvePath(raw, jsonPath);
+    }
 
+    private resolvePath(raw: string, jsonPath: string | undefined): string | undefined {
         // No JSON path → return raw (with backward-compat convenience for
         // single-key objects: if raw is JSON with a "value" key, return it).
         if (!jsonPath) {
@@ -102,8 +118,6 @@ export abstract class BaseSecretResolver {
         this.cache.clear();
     }
 }
-
-// ─── Helpers ─────────────────────────────────────────────────────────────────
 
 /**
  * Traverse a parsed JSON value using a dot-notation path with array indices.

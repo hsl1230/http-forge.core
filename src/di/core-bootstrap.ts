@@ -206,7 +206,9 @@ export function registerCoreServices(
             return new NodeHttpClient(
                 () => envConfigService.getResolvedConfig().request,
                 workspaceFolder,
-                () => envConfigService.getResolvedConfig()?.proxy ?? null
+                () => envConfigService.getResolvedConfig()?.proxy ?? null,
+                () => c.resolve<SecretResolverRegistry>(ServiceIdentifiers.SecretResolverRegistry),
+                () => c.resolve<IConsoleService>(ServiceIdentifiers.Console)
             );
         }
     );
@@ -297,7 +299,10 @@ export function registerCoreServices(
 
     container.registerSingleton<SecretResolverRegistry>(
         ServiceIdentifiers.SecretResolverRegistry,
-        (c) => new SecretResolverRegistry(c.resolve<IConfigService>(ServiceIdentifiers.Config))
+        (c) => new SecretResolverRegistry(
+            c.resolve<IConfigService>(ServiceIdentifiers.Config),
+            c.resolve<IConsoleService>(ServiceIdentifiers.Console)
+        )
     );
 
     // ========================================

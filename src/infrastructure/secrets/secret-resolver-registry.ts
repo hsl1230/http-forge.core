@@ -22,6 +22,7 @@ import type {
     SecretProviderConfig,
 } from '../../types/secret-resolver';
 import type { IConfigService } from '../config/config.interface';
+import type { IConsoleService } from '../../types/console-service';
 import { AwsSecretResolver } from './aws-secret-resolver';
 import { AzureKeyVaultResolver } from './azure-keyvault-resolver';
 import { DopplerResolver } from './doppler-resolver';
@@ -47,10 +48,22 @@ export class SecretResolverRegistry {
      */
     private configKey?: string;
 
-    constructor(private readonly configService?: IConfigService) {
+    constructor(private readonly configService?: IConfigService, private readonly consoleService?: IConsoleService) {
         // eslint-disable-next-line @typescript-eslint/no-require-imports
         this.moduleRequire = (name: string) => require(name);
         this.refreshProviders();
+    }
+
+    /**
+     * Log a warning via the console service (VS Code output channel) when
+     * available, falling back to console.warn for CLI/standalone.
+     */
+    private logWarn(message: string): void {
+        if (this.consoleService) {
+            this.consoleService.warn(message, 'SecretResolver');
+        } else {
+            console.warn(message);
+        }
     }
 
     /**
@@ -76,7 +89,7 @@ export class SecretResolverRegistry {
                 const rest = token.slice('secret:'.length); // "aws/myapp/prod/apiKey"
                 const slashIdx = rest.indexOf('/');
                 if (slashIdx < 0) {
-                    console.warn(
+                    this.logWarn(
                         `[HTTP Forge] {{${token}}} is malformed; expected {{secret:<alias>/<path>}}.`
                     );
                     return;
@@ -86,7 +99,7 @@ export class SecretResolverRegistry {
                 const path = rest.slice(slashIdx + 1);
                 const resolver = this.resolvers.get(alias);
                 if (!resolver) {
-                    console.warn(
+                    this.logWarn(
                         `[HTTP Forge] {{${token}}} could not be resolved: ` +
                         `no secret provider is configured for alias "${alias}".`
                     );
@@ -98,14 +111,14 @@ export class SecretResolverRegistry {
                     if (value !== undefined) {
                         requestCache.set(token, value);
                     } else {
-                        console.warn(
+                        this.logWarn(
                             `[HTTP Forge] {{${token}}} could not be resolved: secret not found.`
                         );
                     }
                 } catch (err: any) {
                     // Log a visible warning so the user knows why the token wasn't resolved
                     const reason = err?.message ?? String(err);
-                    console.warn(`[HTTP Forge] {{${token}}} could not be resolved: ${reason}`);
+                    this.logWarn(`[HTTP Forge] {{${token}}} could not be resolved: ${reason}`);
                     // leave unresolved — token will remain in output
                 }
             })
@@ -171,13 +184,13 @@ export class SecretResolverRegistry {
                 if (resolver) {
                     this.resolvers.set(alias, resolver);
                 } else {
-                    console.warn(
+                    this.logWarn(
                         `[HTTP Forge] Secret "${alias}" skipped: unsupported type "${(providerCfg as SecretProviderConfig)?.provider}".`
                     );
                 }
             } catch (err: any) {
                 const provider = (providerCfg as SecretProviderConfig)?.provider ?? 'unknown';
-                console.warn(
+                this.logWarn(
                     `[HTTP Forge] Secret "${alias}" (${provider}) skipped: ${err?.message ?? String(err)}`
                 );
             }
