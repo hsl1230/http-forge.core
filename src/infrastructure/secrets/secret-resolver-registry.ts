@@ -90,7 +90,7 @@ export class SecretResolverRegistry {
                 const slashIdx = rest.indexOf('/');
                 if (slashIdx < 0) {
                     this.logWarn(
-                        `[HTTP Forge] {{${token}}} is malformed; expected {{secret:<alias>/<path>}}.`
+                        `[HTTP Forge] Malformed secret token (no alias/path separator): ${token}`
                     );
                     return;
                 }

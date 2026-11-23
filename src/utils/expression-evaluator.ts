@@ -35,6 +35,9 @@ export function isExpression(content: string): boolean {
     // Not an expression if empty
     if (!trimmed) { return false; }
 
+    // Not an expression if it's a secret reference (handled by the secret resolver)
+    if (/^secret:/i.test(trimmed)) { return false; }
+
     // Not an expression if it's a simple variable name (with optional $ prefix)
     if (/^(\$?)[a-zA-Z_][a-zA-Z0-9_]*(\([^)]*\))?$/.test(trimmed)) { return false; }
 

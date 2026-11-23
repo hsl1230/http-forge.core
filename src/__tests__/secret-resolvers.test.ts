@@ -307,7 +307,7 @@ describe('SecretResolverRegistry', () => {
         const resolved = await registry.resolveSecretTokens('{{secret:no-path}}');
 
         expect(resolved).toEqual({});
-        expect(warn).toHaveBeenCalledWith(expect.stringContaining('malformed'));
+        expect(warn).toHaveBeenCalledWith(expect.stringContaining('Malformed'));
     });
 
     it('logs and leaves the token unresolved when a provider request fails', async () => {
