@@ -76,7 +76,7 @@ export class TestSuiteService implements ITestSuiteService {
      */
     private setupFileWatcher(): void {
         try {
-            this.fileWatcher = fs.watch(this.suitesDir, (_eventType, filename) => {
+            this.fileWatcher = fs.watch(this.suitesDir, { recursive: true }, (_eventType, filename) => {
                 // Only react to *.suite.json files
                 if (filename && !filename.endsWith('.suite.json')) {
                     return;
@@ -113,7 +113,7 @@ export class TestSuiteService implements ITestSuiteService {
     }
 
     /**
-     * Load all suites from disk
+     * Load all suites from disk (recursive — scans subdirectories for folders)
      */
     public loadSuites(): void {
         this.suites.clear();
@@ -122,61 +122,74 @@ export class TestSuiteService implements ITestSuiteService {
             return;
         }
 
-        const files = fs.readdirSync(this.suitesDir);
+        const loadFromDir = (dir: string, relativePath: string): void => {
+            let entries: fs.Dirent[];
+            try {
+                entries = fs.readdirSync(dir, { withFileTypes: true });
+            } catch {
+                return;
+            }
 
-        for (const file of files) {
-            if (file.endsWith('.suite.json')) {
-                try {
-                    const filePath = path.join(this.suitesDir, file);
-                    const content = fs.readFileSync(filePath, 'utf-8');
-                    const raw = JSON.parse(content) as LegacySuiteFileData;
+            for (const entry of entries) {
+                const fullPath = path.join(dir, entry.name);
+                if (entry.isDirectory()) {
+                    // Recurse into subdirectories
+                    const subPath = relativePath ? `${relativePath}/${entry.name}` : entry.name;
+                    loadFromDir(fullPath, subPath);
+                } else if (entry.isFile() && entry.name.endsWith('.suite.json')) {
+                    try {
+                        const content = fs.readFileSync(fullPath, 'utf-8');
+                        const raw = JSON.parse(content) as LegacySuiteFileData;
 
-                    // Migrate legacy requests -> nodes at load time (never written back)
-                    const nodes = Array.isArray(raw.nodes) && raw.nodes.length > 0
-                        ? raw.nodes
-                        : (Array.isArray(raw.requests) ? raw.requests : []).map((req: SuiteRequest): SuiteRequestNode => ({
-                            type: 'request',
-                            name: req.description || req.name,
-                            request: req,
-                            enabled: req.enabled !== false
-                        }));
+                        const nodes = Array.isArray(raw.nodes) && raw.nodes.length > 0
+                            ? raw.nodes
+                            : (Array.isArray(raw.requests) ? raw.requests : []).map((req: SuiteRequest): SuiteRequestNode => ({
+                                type: 'request',
+                                name: req.description || req.name,
+                                request: req,
+                                enabled: req.enabled !== false
+                            }));
 
-                    const suite: TestSuite = {
-                        id: raw.id,
-                        name: raw.name,
-                        description: raw.description,
-                        scripts: raw.scripts,
-                        nodes,
-                        config: (() => {
-                            const rawConfig = raw.config ?? {};
-                            const normalized: SuiteConfig = { ...DEFAULT_SUITE_CONFIG, ...rawConfig };
-                            normalized.loadPersistedEnvironmentValues =
-                                normalized.loadPersistedEnvironmentValues ??
-                                normalized.readFromSharedSession ??
-                                false;
-                            normalized.usePersistentCookieJar =
-                                normalized.usePersistentCookieJar ??
-                                normalized.writeToSharedSession ??
-                                false;
-                            normalized.readFromSharedSession = normalized.loadPersistedEnvironmentValues;
-                            normalized.writeToSharedSession = normalized.usePersistentCookieJar;
-                            return normalized;
-                        })(),
-                        isTemporary: raw.isTemporary,
-                        ai_generated: raw.ai_generated === true,
-                        derived_from: Array.isArray(raw.derived_from) ? raw.derived_from as string[] : undefined,
-                        createdAt: raw.createdAt ?? Date.now(),
-                        updatedAt: raw.updatedAt ?? Date.now(),
-                    };
-                    
-                    if (suite.id && suite.name) {
-                        this.suites.set(suite.id, suite);
+                        const suite: TestSuite = {
+                            id: raw.id,
+                            name: raw.name,
+                            description: raw.description,
+                            scripts: raw.scripts,
+                            nodes,
+                            config: (() => {
+                                const rawConfig = raw.config ?? {};
+                                const normalized: SuiteConfig = { ...DEFAULT_SUITE_CONFIG, ...rawConfig };
+                                normalized.loadPersistedEnvironmentValues =
+                                    normalized.loadPersistedEnvironmentValues ??
+                                    normalized.readFromSharedSession ??
+                                    false;
+                                normalized.usePersistentCookieJar =
+                                    normalized.usePersistentCookieJar ??
+                                    normalized.writeToSharedSession ??
+                                    false;
+                                normalized.readFromSharedSession = normalized.loadPersistedEnvironmentValues;
+                                normalized.writeToSharedSession = normalized.usePersistentCookieJar;
+                                return normalized;
+                            })(),
+                            isTemporary: raw.isTemporary,
+                            ai_generated: raw.ai_generated === true,
+                            derived_from: Array.isArray(raw.derived_from) ? raw.derived_from as string[] : undefined,
+                            createdAt: raw.createdAt ?? Date.now(),
+                            updatedAt: raw.updatedAt ?? Date.now(),
+                            folderPath: relativePath || undefined,
+                        };
+
+                        if (suite.id && suite.name) {
+                            this.suites.set(suite.id, suite);
+                        }
+                    } catch (error) {
+                        console.error(`[TestSuiteService] Failed to load ${fullPath}:`, error);
                     }
-                } catch (error) {
-                    console.error(`[TestSuiteService] Failed to load ${file}:`, error);
                 }
             }
-        }
+        };
+
+        loadFromDir(this.suitesDir, '');
     }
 
     /**

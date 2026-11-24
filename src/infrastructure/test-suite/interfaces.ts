@@ -190,6 +190,8 @@ export interface TestSuite {
     createdAt: number;
     /** Last update timestamp */
     updatedAt: number;
+    /** Relative folder path within the suites directory (empty string for root-level suites) */
+    folderPath?: string;
 }
 
 /**
