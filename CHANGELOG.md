@@ -5,19 +5,31 @@ All notable changes to @http-forge/core will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## 1.0.7 - 2026-11-20
-
-### Added
-
-- Universal JSON secret bundling and caching across all secret providers (GCP, AWS, Azure, Vault, 1Password, Doppler, custom).
-- New `BaseSecretResolver` abstract class with TTL-based caching of raw secret strings and universal JSON path resolution via dot-notation (e.g. `{{secret:provider/secret-name.db.password}}`), including nested objects and array indices (`items[0].name`).
-- Legacy `#field` syntax is still supported for backward compatibility.
-- Providers now only implement `fetchRaw()`; all parsing, traversal, and caching live in the shared base class.
-- `clearCache()` method on resolvers; cache is cleared automatically at the start of each run (request, collection, or suite).
+## 1.0.8 - 2026-11-23
 
 ### Fixed
 
-- Made collection cache write synchronous to prevent a race condition where `create()`'s async cache write could overwrite `saveItem()`'s cache write, causing stale (empty) cached collections and slow/incorrect startup on Windows.
+- Script refresh: `findRequest` now always re-reads scripts from disk so externally edited `pre-request.js`/`post-response.js` are picked up.
+- `isExpression()` no longer evaluates `secret:` references as JavaScript expressions (prevented 5s script timeout).
+- Secret resolution errors now logged to HTTP Forge output channel with full token name.
+- Collection cache: synchronous writes to prevent stale-cache race condition.
+- Watcher: guard reloads by file type (only `collection.json`/`folder.json`/`request.json` trigger reloads).
+
+### Added
+
+- Universal JSON secret bundling and caching across all secret providers.
+- `BaseSecretResolver` abstract class with TTL caching and JSON path resolution.
+- Monaco IntelliSense for script globals (`_`, `moment`, `CryptoJS`, etc.).
+
+## 1.0.7 - 2026-11-20
+
+### Changed
+
+- Improved collection loading performance with caching and metadata optimizations.
+- Added startup metadata cache (`.http-forge/.cache/collections/`) for folder collections: subsequent startups read one cache file per collection instead of 1,180+ individual files.
+- Added path index (`itemPathIndex`) for O(1) item path resolution instead of full directory scans.
+- `getResolvedRequests()` now resolves display metadata from in-memory collection tree instead of hydrating every request.
+- Watcher: narrowed glob from `**/*` to `**/*.{json,md}` and increased debounce from 300ms to 1,500ms to reduce Defender-triggered reloads on Windows.
 
 ## 1.0.6 - 2026-11-18
 

@@ -128,7 +128,7 @@ Run it with your preferred TypeScript runtime or compile and execute with Node.
 
 - Set `requestTimeout` to match your environment/SLA.
 - Enable cookies if your flow includes session-based auth.
-- Feed secrets via environment variables, never hardcoded strings.
+- Feed secrets via environment variables or cloud secret providers (`{{secret:alias/path}}`), never hardcoded strings. Supports JSON path resolution: `{{secret:alias/secret-name.db.password}}`.
 - Exit non-zero when assertions fail in CI pipelines.
 - Keep collections/environments in source control for repeatability.
 

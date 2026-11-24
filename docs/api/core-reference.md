@@ -1002,7 +1002,7 @@ interface McpConfig {
 
 Use `IConfigService.getMcpConfig()` to read the resolved config with all defaults applied.
 
-**`SecretsConfig`** — defines named aliases used by `{{secret:alias/path}}` expressions:
+**`SecretsConfig`** — defines named aliases used by `{{secret:alias/path}}` expressions (supports dot-notation JSON paths: `{{secret:alias/secret-name.db.password}}`):
 
 ```typescript
 interface SecretsConfig {
