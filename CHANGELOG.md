@@ -9,6 +9,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Added `folderPath` to `TestSuite` interface for hierarchical folder organization.
+- `loadSuites()` now scans subdirectories recursively for `.suite.json` files.
+- File watcher now uses `{ recursive: true }` to detect changes in nested folders.
 - Script refresh: `findRequest` now always re-reads scripts from disk so externally edited `pre-request.js`/`post-response.js` are picked up.
 - `isExpression()` no longer evaluates `secret:` references as JavaScript expressions (prevented 5s script timeout).
 - Secret resolution errors now logged to HTTP Forge output channel with full token name.
