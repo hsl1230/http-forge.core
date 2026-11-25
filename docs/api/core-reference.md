@@ -1300,3 +1300,28 @@ MIT © Henry Huang
 - ✅ **Full TypeScript support** with comprehensive types
 - ✅ **Dependency injection** for extensibility
 - ✅ **Comprehensive test coverage**
+
+## TestSuiteService folder management
+
+`TestSuiteService` supports hierarchical folder organization for test suites. Folders are derived from the directory structure under the suites path.
+
+### Methods
+
+| Method | Description |
+|---|---|
+| `createFolder(folderPath)` | Create a new folder (directory) for test suites |
+| `renameFolder(oldPath, newPath)` | Rename a folder and update all suites within it |
+| `deleteFolder(folderPath, deleteSuites?)` | Delete a folder; optionally delete suites or move them to parent |
+| `moveFolder(oldPath, newPath)` | Move a folder (and all contents) to a new location |
+| `getAllSuiteIds()` | Get all non-temporary suite IDs |
+| `getSuiteIdsInFolder(folderPath)` | Get suite IDs under a folder (recursive) |
+| `getSuitesInFolder(folderPath)` | Get suites under a folder (recursive) |
+| `saveSuiteToDisk(suite)` | Save a suite; supports subfolder paths (creates directories, cleans stale copies) |
+
+### folderPath property
+
+`TestSuite.folderPath` is a slash-separated path (e.g. `"auth/login"`). It is derived from the file's location on disk during `loadSuites()` and persisted by placing the `.suite.json` file in the corresponding subdirectory.
+
+### Drag-and-drop
+
+The extension's tree view supports drag-and-drop for moving suites and folders. The `handleDrag`/`handleDrop` methods in `TestSuitesTreeProvider` use `dataTransfer` with MIME type `application/vnd.code.tree.httpforge.testsuites` to carry suite IDs and folder paths.

@@ -68,9 +68,9 @@ export {
 export type { GenericToolName } from './runtime/mcp-tool-schemas';
 export { resolveResultGrouping } from './runtime/result-grouping';
 export {
-    createMcpRuntime, runCollection, runFolder, runRequest, runSuite
+    createMcpRuntime, runCollection, runFolder, runRequest, runSuite, runSuites
 } from './runtime/runtime-contracts';
-export type { McpRuntimeHandle, McpRuntimeOptions, RunCollectionOptions, RunRequestOptions, RunSuiteOptions } from './runtime/runtime-contracts';
+export type { McpRuntimeHandle, McpRuntimeOptions, RunCollectionOptions, RunRequestOptions, RunSuiteOptions, RunSuitesOptions } from './runtime/runtime-contracts';
 
 // ============================================================
 // Runtime - Node.js Bootstrap and Adapters

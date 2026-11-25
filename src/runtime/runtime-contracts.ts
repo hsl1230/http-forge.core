@@ -231,6 +231,13 @@ export interface RunSuiteOptions {
   concurrency?: number;
 }
 
+export interface RunSuitesOptions extends Omit<RunSuiteOptions, 'suiteId'> {
+  /** Suite IDs to execute (combined into one report) */
+  suiteIds: string[];
+  /** Display name for the combined run */
+  name?: string;
+}
+
 /**
  * Execute a single request directly without MCP server.
  * Returns typed result object; never calls process.exit.
@@ -269,5 +276,14 @@ export async function runFolder(
  */
 export async function runSuite(options: RunSuiteOptions): Promise<unknown> {
   const { runSuite: impl } = await import('./direct-execution');
+  return impl(options);
+}
+
+/**
+ * Execute multiple test suites as a single combined run.
+ * Returns typed result object; never calls process.exit.
+ */
+export async function runSuites(options: RunSuitesOptions): Promise<unknown> {
+  const { runSuites: impl } = await import('./direct-execution');
   return impl(options);
 }

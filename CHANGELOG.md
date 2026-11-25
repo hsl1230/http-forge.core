@@ -5,13 +5,27 @@ All notable changes to @http-forge/core will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## 1.0.8 - 2026-11-23
+## 1.0.9 - 2026-11-25
 
-### Fixed
+### Added
 
 - Added `folderPath` to `TestSuite` interface for hierarchical folder organization.
 - `loadSuites()` now scans subdirectories recursively for `.suite.json` files.
 - File watcher now uses `{ recursive: true }` to detect changes in nested folders.
+- **Test Suite folder management**: `createFolder`, `renameFolder`, `deleteFolder`, and `moveFolder` methods on `TestSuiteService` for hierarchical test suite organization.
+- `getAllSuiteIds`, `getSuiteIdsInFolder`, `getSuitesInFolder` methods for folder-scoped suite queries.
+- `saveSuiteToDisk` now supports subfolder paths — creates directories recursively and cleans up stale copies when suites move between folders.
+
+### Changed
+
+- `TestSuite.folderPath` is now persisted via directory structure (derived on load from file location).
+- Drag-and-drop support for moving suites and folders between hierarchy levels.
+
+
+## 1.0.8 - 2026-11-23
+
+### Fixed
+
 - Script refresh: `findRequest` now always re-reads scripts from disk so externally edited `pre-request.js`/`post-response.js` are picked up.
 - `isExpression()` no longer evaluates `secret:` references as JavaScript expressions (prevented 5s script timeout).
 - Secret resolution errors now logged to HTTP Forge output channel with full token name.

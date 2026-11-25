@@ -280,6 +280,14 @@ export interface ITestSuiteService {
     createSuite(name: string): Promise<TestSuite>;
     getSuite(id: string): Promise<TestSuite | undefined>;
     getAllSuites(): Promise<TestSuite[]>;
+    getAllSuiteIds(): Promise<string[]>;
+    getSuiteIdsInFolder(folderPath: string): Promise<string[]>;
+    getSuitesInFolder(folderPath: string): Promise<TestSuite[]>;
+    getAllFolders(): string[];
+    createFolder(folderPath: string): Promise<void>;
+    renameFolder(oldPath: string, newPath: string): Promise<void>;
+    deleteFolder(folderPath: string, deleteSuites?: boolean): Promise<void>;
+    moveFolder(oldPath: string, newPath: string): Promise<void>;
     updateSuite(suite: TestSuite): Promise<void>;
     deleteSuite(id: string): Promise<boolean>;
     

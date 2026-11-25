@@ -293,8 +293,25 @@ export class TestSuiteService implements ITestSuiteService {
         }
 
         const filename = `${suite.id}.suite.json`;
-        const filePath = path.join(this.suitesDir, filename);
-        const suiteDirPath = path.join(this.suitesDir, suite.id);
+        // Find the file in the directory tree (may be in a subfolder)
+        let filePath = path.join(this.suitesDir, filename);
+        const findFile = (dir: string): string | null => {
+            if (!fs.existsSync(dir)) return null;
+            for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+                const full = path.join(dir, entry.name);
+                if (entry.isDirectory()) {
+                    const found = findFile(full);
+                    if (found) return found;
+                } else if (entry.name === filename) {
+                    return full;
+                }
+            }
+            return null;
+        };
+        const found = findFile(this.suitesDir);
+        if (found) filePath = found;
+
+        const suiteDirPath = path.join(path.dirname(filePath), suite.id);
 
         try {
             if (fs.existsSync(filePath)) {
@@ -615,7 +632,12 @@ export class TestSuiteService implements ITestSuiteService {
         this.ensureSuitesDir();
 
         const filename = `${suite.id}.suite.json`;
-        const filePath = path.join(this.suitesDir, filename);
+        const folderPath = (suite.folderPath || '').replace(/^\/+|\/+$/g, '');
+        const targetDir = folderPath ? path.join(this.suitesDir, ...folderPath.split('/')) : this.suitesDir;
+        if (folderPath) {
+            fs.mkdirSync(targetDir, { recursive: true });
+        }
+        const filePath = path.join(targetDir, filename);
         const tempPath = `${filePath}.tmp-${process.pid}-${Date.now()}`;
 
         const normalizedSuite = {
@@ -636,5 +658,146 @@ export class TestSuiteService implements ITestSuiteService {
         const content = JSON.stringify(normalizedSuite, null, 2);
         fs.writeFileSync(tempPath, content, 'utf-8');
         fs.renameSync(tempPath, filePath);
+
+        // Remove stale copies from any other location (handles moves between folders)
+        const walkAndClean = (dir: string) => {
+            if (!fs.existsSync(dir)) return;
+            for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+                const full = path.join(dir, entry.name);
+                if (entry.isDirectory()) {
+                    walkAndClean(full);
+                } else if (entry.name === filename && full !== filePath) {
+                    fs.unlinkSync(full);
+                    // Do NOT remove the parent directory even if empty —
+                    // empty folders should persist for manual management.
+                }
+            }
+        };
+        walkAndClean(this.suitesDir);
+    }
+
+    public async getAllSuiteIds(): Promise<string[]> {
+        return Array.from(this.suites.values())
+            .filter(s => !s.isTemporary)
+            .map(s => s.id);
+    }
+
+    public async getSuiteIdsInFolder(folderPath: string): Promise<string[]> {
+        const prefix = folderPath ? `${folderPath}/` : '';
+        return Array.from(this.suites.values())
+            .filter(s => !s.isTemporary && (s.folderPath === folderPath || (s.folderPath || '').startsWith(prefix)))
+            .map(s => s.id);
+    }
+
+    public async getSuitesInFolder(folderPath: string): Promise<TestSuite[]> {
+        const prefix = folderPath ? `${folderPath}/` : '';
+        return Array.from(this.suites.values())
+            .filter(s => !s.isTemporary && (s.folderPath === folderPath || (s.folderPath || '').startsWith(prefix)));
+    }
+
+    /**
+     * Get all folder paths on disk (including empty folders).
+     */
+    public getAllFolders(): string[] {
+        const folders: string[] = [];
+        const walk = (dir: string, relative: string) => {
+            if (!fs.existsSync(dir)) return;
+            for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+                if (entry.isDirectory()) {
+                    const rel = relative ? `${relative}/${entry.name}` : entry.name;
+                    folders.push(rel);
+                    walk(path.join(dir, entry.name), rel);
+                }
+            }
+        };
+        walk(this.suitesDir, '');
+        return folders;
+    }
+
+    /**
+     * Create a new folder for test suites.
+     */
+    public async createFolder(folderPath: string): Promise<void> {
+        const target = path.join(this.suitesDir, ...folderPath.split('/'));
+        fs.mkdirSync(target, { recursive: true });
+    }
+
+    /**
+     * Rename a folder and update all suites within it.
+     */
+    public async renameFolder(oldPath: string, newPath: string): Promise<void> {
+        const oldDir = path.join(this.suitesDir, ...oldPath.split('/'));
+        const newDir = path.join(this.suitesDir, ...newPath.split('/'));
+        if (!fs.existsSync(oldDir)) throw new Error(`Folder not found: ${oldPath}`);
+        fs.mkdirSync(path.dirname(newDir), { recursive: true });
+        fs.renameSync(oldDir, newDir);
+
+        const prefix = `${oldPath}/`;
+        for (const suite of this.suites.values()) {
+            if (suite.folderPath === oldPath) {
+                suite.folderPath = newPath;
+                await this.saveSuiteToDisk(suite);
+                this.suites.set(suite.id, suite);
+            } else if (suite.folderPath?.startsWith(prefix)) {
+                suite.folderPath = newPath + suite.folderPath.slice(oldPath.length);
+                await this.saveSuiteToDisk(suite);
+                this.suites.set(suite.id, suite);
+            }
+        }
+    }
+
+    /**
+     * Move a folder (and all its contents) to a new location.
+     */
+    public async moveFolder(oldPath: string, newPath: string): Promise<void> {
+        const oldDir = path.join(this.suitesDir, ...oldPath.split('/'));
+        const newDir = path.join(this.suitesDir, ...newPath.split('/'));
+        if (!fs.existsSync(oldDir)) throw new Error(`Folder not found: ${oldPath}`);
+        if (fs.existsSync(newDir)) throw new Error(`Target already exists: ${newPath}`);
+        fs.mkdirSync(path.dirname(newDir), { recursive: true });
+        fs.renameSync(oldDir, newDir);
+
+        // Update all suites whose folderPath starts with oldPath
+        const prefix = `${oldPath}/`;
+        for (const suite of this.suites.values()) {
+            if (suite.folderPath === oldPath) {
+                suite.folderPath = newPath;
+                await this.saveSuiteToDisk(suite);
+                this.suites.set(suite.id, suite);
+            } else if (suite.folderPath?.startsWith(prefix)) {
+                suite.folderPath = newPath + suite.folderPath.slice(oldPath.length);
+                await this.saveSuiteToDisk(suite);
+                this.suites.set(suite.id, suite);
+            }
+        }
+    }
+
+    /**
+     * Delete a folder. If deleteSuites is true, deletes all suites in it.
+     * Otherwise, moves suites to the parent folder.
+     */
+    public async deleteFolder(folderPath: string, deleteSuites: boolean = false): Promise<void> {
+        const dir = path.join(this.suitesDir, ...folderPath.split('/'));
+        if (!fs.existsSync(dir)) throw new Error(`Folder not found: ${folderPath}`);
+
+        const prefix = `${folderPath}/`;
+        const affected = Array.from(this.suites.values()).filter(s =>
+            s.folderPath === folderPath || (s.folderPath || '').startsWith(prefix)
+        );
+
+        if (deleteSuites) {
+            for (const suite of affected) {
+                await this.deleteSuite(suite.id);
+            }
+        } else {
+            const parentPath = folderPath.split('/').slice(0, -1).join('/') || undefined;
+            for (const suite of affected) {
+                suite.folderPath = parentPath;
+                await this.saveSuiteToDisk(suite);
+                this.suites.set(suite.id, suite);
+            }
+        }
+
+        fs.rmSync(dir, { recursive: true, force: true });
     }
 }

@@ -22,6 +22,7 @@ import { CollectionRequestExecutor } from '../infrastructure/execution/collectio
 import { JUnitReportGenerator } from '../infrastructure/test-suite/junit-report-generator';
 import { ResultStorageService } from '../infrastructure/test-suite/result-storage-service';
 import type { Collection } from '../types/collection';
+import type { TestSuite } from '../infrastructure/test-suite/interfaces';
 import type { ExecutionResult } from '../types/types';
 import {
   findRequestInCollection,
@@ -53,7 +54,8 @@ import { resolveResultGrouping } from './result-grouping';
 import type {
   RunCollectionOptions,
   RunRequestOptions,
-  RunSuiteOptions
+  RunSuiteOptions,
+  RunSuitesOptions
 } from './runtime-contracts';
 import { SuiteExecutor } from './suite-executor';
 
@@ -364,6 +366,76 @@ export async function runFolder(
   options: RunCollectionOptions & ({ folderPath: string } | { folderRef: string })
 ): Promise<unknown> {
   return runCollection({ recursive: true, ...options });
+}
+
+/**
+ * Execute multiple test suites as a single combined run.
+ * Suites are wrapped in block nodes (one per suite) so results are grouped.
+ * Returns typed result; never calls process.exit.
+ */
+export async function runSuites(options: RunSuitesOptions): Promise<unknown> {
+  const container = createNodeContainer(options.workspaceFolder);
+
+  try {
+    container.scriptExecutor?.beginRun?.();
+    const testSuiteService = container.testSuite;
+
+    const suiteIds = options.suiteIds ?? [];
+    if (suiteIds.length === 0) {
+        throw new Error('At least one suite ID is required');
+    }
+
+    const suites: TestSuite[] = [];
+    for (const id of suiteIds) {
+        const suite = await testSuiteService.getSuite(id);
+        if (suite) suites.push(suite);
+    }
+
+    if (suites.length === 0) {
+        throw new Error('No suites found for the given IDs');
+    }
+
+    // Build composite suite: one block node per suite
+    const compositeSuite: TestSuite = {
+        id: `composite-${Date.now()}`,
+        name: options.name ?? suites.map(s => s.name).join(' + '),
+        nodes: suites.map(suite => ({
+            type: 'block' as const,
+            name: suite.name,
+            nodes: (suite.nodes ?? []) as any[],
+            enabled: true,
+        })),
+        config: {
+            iterations: options.iterations ?? 1,
+            delayBetweenRequests: options.delay ?? 0,
+            stopOnError: options.stopOnError ?? false,
+            readFromSharedSession: false,
+            writeToSharedSession: false,
+            loadPersistedEnvironmentValues: false,
+            usePersistentCookieJar: false,
+        },
+        isTemporary: true,
+        createdAt: Date.now(),
+        updatedAt: Date.now(),
+    };
+
+    return new SuiteExecutor(container).execute(compositeSuite, {
+        environment: options.environment,
+        iterations: options.iterations,
+        stopOnError: options.stopOnError,
+        delay: options.delay,
+        requestFilter: options.requestFilter,
+        include: options.include,
+        reporters: options.reporters,
+        concurrency: options.concurrency,
+        variables: options.variables
+    }, 'suite');
+  } catch (err) {
+    throw err;
+  } finally {
+    container.scriptExecutor?.endRun?.();
+    disposeContainerResources(container);
+  }
 }
 
 /**
