@@ -73,7 +73,58 @@ export function diagnoseRequest(result: Record<string, unknown>): DiagnosticChec
     });
   }
 
-  // 5. Empty response
+  // 5. Environment variable resolution
+  const url = (result.url || result.requestUrl || '') as string;
+  const headers = (result.requestHeaders || result.headers || {}) as Record<string, string>;
+  const varRefs = (url.match(/\{\{([^}]+)\}\}/g) || []).map((m: string) => m.replace(/[{}]/g, '').trim());
+  // Also check headers for variable refs
+  for (const val of Object.values(headers)) {
+    const refs = (val.match(/\{\{([^}]+)\}\}/g) || []).map((m: string) => m.replace(/[{}]/g, '').trim());
+    varRefs.push(...refs);
+  }
+  const uniqueRefs = [...new Set(varRefs)].filter((r) => !r.startsWith('secret:'));
+  if (uniqueRefs.length > 0) {
+    // Check if any ref still appears unresolved in the URL or headers
+    const unresolved = uniqueRefs.filter((ref) => {
+      return url.includes(`{{${ref}}}`) || Object.values(headers).some((v) => v.includes(`{{${ref}}}`));
+    });
+    if (unresolved.length > 0) {
+      checks.push({
+        name: 'Environment variables',
+        status: 'fail',
+        detail: `Unresolved variable(s): ${unresolved.join(', ')}. Check that they are defined in the selected environment.`,
+      });
+    } else {
+      checks.push({
+        name: 'Environment variables',
+        status: 'pass',
+        detail: `All ${uniqueRefs.length} variable(s) resolved`,
+      });
+    }
+  }
+
+  // 6. Auth header
+  const hasAuth = Object.keys(headers).some((k) => k.toLowerCase() === 'authorization');
+  if (!hasAuth && (result.method === 'POST' || result.method === 'PUT' || result.method === 'DELETE')) {
+    checks.push({
+      name: 'Auth header',
+      status: 'warn',
+      detail: 'No Authorization header found for a mutating request',
+    });
+  }
+
+  // 7. Content-Type for body
+  const method = (result.method || '') as string;
+  const requestBody = result.requestBody ?? result.body;
+  if (['POST', 'PUT', 'PATCH'].includes(method.toUpperCase()) && requestBody && !headers['Content-Type'] && !headers['content-type']) {
+    checks.push({
+      name: 'Content-Type header',
+      status: 'warn',
+      detail: 'Missing Content-Type header for request with body',
+    });
+  }
+
+  // 8. Empty response
   const body = result.responseBody ?? result.body;
   if (body === undefined || body === null || body === '') {
     checks.push({
