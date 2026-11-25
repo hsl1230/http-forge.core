@@ -111,9 +111,25 @@ assets/
     {env}.local.json         (gitignored overrides)
   suites/
     {name}.suite.json        (test suite with control-flow nodes)
+    {folder-name}/
+      {name}.suite.json      (nested test suite)
 ```
 
 ---
+
+## Test Suite Folders
+
+Test suites can be organized into nested folders under `assets/suites/`. Each subdirectory becomes a folder in the tree view.
+
+- **Create folder**: right-click in tree view → "New Folder", or use the title bar button
+- **Rename folder**: right-click folder → "Rename Folder"
+- **Delete folder**: right-click folder → "Delete Folder" (move suites to parent or delete all)
+- **Move suites/folders**: drag and drop in the tree view
+- **Multi-select run**: Ctrl+click to select multiple suites, then right-click → "Run Selected Test Suites"
+- **Run all in folder**: right-click a folder → "Run All Suites in Folder"
+- Empty folders are preserved on disk (not auto-deleted)
+
+Folders are derived from the directory structure on disk. External changes (terminal, file explorer) are reflected automatically via recursive file watching.
 
 ## Business Knowledge (`.http-forge/knowledge/`)
 

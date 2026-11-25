@@ -256,6 +256,7 @@ export const suiteHandlers: McpToolHandler[] = [
           id: s.id,
           name: s.name,
           description: s.description ?? '',
+          folderPath: s.folderPath ?? '',
           requestCount: collectRequestNodes(s.nodes || []).length,
           flowNodeCount: s.nodes?.length ?? 0,
           iterations: s.config?.iterations ?? 1,
