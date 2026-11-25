@@ -178,3 +178,91 @@ function extractBodyContent(r: CollectionRequestItem): string | undefined {
     }
     return undefined;
 }
+
+// ─── Structural Improvements ──────────────────────────────────────────────────
+
+export interface StructuralSuggestion {
+    type: 'rename' | 'move' | 'merge' | 'split' | 'reorder' | 'duplicate';
+    targetId: string;
+    description: string;
+    proposedValue?: string;
+}
+
+/**
+ * Analyze a collection and suggest structural improvements.
+ * Returns suggestions (does not mutate the collection).
+ */
+export function suggestStructuralImprovements(collection: Collection): StructuralSuggestion[] {
+    const suggestions: StructuralSuggestion[] = [];
+    const requests = collectAllRequests(collection.items);
+
+    // 1. Detect duplicate names
+    const nameCounts = new Map<string, string[]>();
+    for (const r of requests) {
+        const lower = r.name.toLowerCase().trim();
+        if (!nameCounts.has(lower)) nameCounts.set(lower, []);
+        nameCounts.get(lower)!.push(r.id);
+    }
+    for (const [name, ids] of nameCounts) {
+        if (ids.length > 1) {
+            suggestions.push({
+                type: 'duplicate',
+                targetId: ids[1],
+                description: `Duplicate request name "${name}" found ${ids.length} times. Consider renaming or merging.`,
+            });
+        }
+    }
+
+    // 2. Detect requests without descriptions
+    for (const r of requests) {
+        if (!r.description && !r.doc) {
+            suggestions.push({
+                type: 'rename',
+                targetId: r.id,
+                description: `Request "${r.name}" has no description. Consider adding one for documentation.`,
+            });
+        }
+    }
+
+    // 3. Detect inconsistent naming (mixed case styles)
+    const hasSpaces = requests.some((r) => r.name.includes(' '));
+    const hasCamelCase = requests.some((r) => /[a-z][A-Z]/.test(r.name));
+    const hasSnakeCase = requests.some((r) => r.name.includes('_'));
+    const styles = [hasSpaces, hasCamelCase, hasSnakeCase].filter(Boolean).length;
+    if (styles > 1) {
+        suggestions.push({
+            type: 'rename',
+            targetId: requests[0]?.id || '',
+            description: 'Mixed naming styles detected (spaces, camelCase, snake_case). Consider standardizing.',
+        });
+    }
+
+    // 4. Detect empty folders
+    const folders = collectFolders(collection.items);
+    for (const folder of folders) {
+        const items = (folder as any).items || [];
+        if (items.length === 0) {
+            suggestions.push({
+                type: 'split',
+                targetId: (folder as any).id || '',
+                description: `Empty folder "${(folder as any).name || 'unnamed'}" detected. Consider removing or populating.`,
+            });
+        }
+    }
+
+    return suggestions;
+}
+
+function collectFolders(items: CollectionItem[]): CollectionItem[] {
+    const folders: CollectionItem[] = [];
+    const walk = (list: CollectionItem[]) => {
+        for (const item of list) {
+            if (item.type === 'folder') {
+                folders.push(item);
+                if (item.items) walk(item.items);
+            }
+        }
+    };
+    walk(items);
+    return folders;
+}

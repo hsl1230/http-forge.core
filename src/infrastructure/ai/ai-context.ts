@@ -274,6 +274,45 @@ export function gatherWorkspaceKnowledge(workspaceFolder?: string): string {
 }
 
 /**
+ * Gather skill definitions from `.http-forge/skills/` directory.
+ * Skills are markdown files with YAML frontmatter (name, description, triggers).
+ * Returns a formatted string for inclusion in AI prompts.
+ */
+export function gatherWorkspaceSkills(workspaceFolder?: string): string {
+  if (!workspaceFolder) return '';
+  const skillsDir = path.join(workspaceFolder, '.http-forge', 'skills');
+  if (!fs.existsSync(skillsDir)) return '';
+
+  const blocks: string[] = [];
+  let used = 0;
+  const SKILLS_MAX = 3000;
+
+  const walk = (dir: string): void => {
+    if (!fs.existsSync(dir) || used >= SKILLS_MAX) return;
+    for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+      if (used >= SKILLS_MAX) break;
+      const full = path.join(dir, entry.name);
+      if (entry.isDirectory()) {
+        walk(full);
+      } else if (entry.name.endsWith('.md')) {
+        try {
+          const content = fs.readFileSync(full, 'utf-8');
+          if (!content.trim()) return;
+          const trimmed = content.trim().slice(0, Math.min(1500, SKILLS_MAX - used));
+          blocks.push(`### Skill: ${path.relative(skillsDir, full)}\n${trimmed}`);
+          used += trimmed.length;
+        } catch {
+          // ignore
+        }
+      }
+    }
+  };
+
+  walk(skillsDir);
+  return blocks.length > 0 ? blocks.join('\n\n').slice(0, SKILLS_MAX) : '';
+}
+
+/**
  * Compact run-results context from the shared run store: outcome, failures,
  * and assertion messages — the test-result grounding for failure tools.
  */

@@ -12,8 +12,10 @@ import {
   runResultsKnowledgeSource,
   workspaceKnowledgeSource,
 } from '../../infrastructure/ai/ai-context';
+import { diagnoseRequest, formatDiagnostics } from '../../infrastructure/analysis/request-diagnostics';
 import { extractJsonFromLlm, withAiRetry } from '../../infrastructure/ai/ai-utils';
 import { applyEnvSuggestionsToItems, detectEnvSuggestions } from '../../infrastructure/analysis/env-suggester';
+import { suggestStructuralImprovements } from '../../infrastructure/analysis/collection-enhancer';
 import { OpenApiImporter } from '../../infrastructure/openapi/openapi-importer';
 import { OpenApiExporter } from '../../infrastructure/openapi/openapi-exporter';
 import { SchemaInferenceService } from '../../infrastructure/openapi/schema-inference-service';
@@ -370,9 +372,14 @@ export const aiHandlers: McpToolHandler[] = [
         let diagnosis = '';
         let suggestedFixes: string[] = [];
 
+        // Run deterministic diagnostic checks before AI call.
+        const diagnostics = diagnoseRequest(result as Record<string, unknown>);
+        const diagnosticText = formatDiagnostics(diagnostics);
+
         // Prefer a real LLM diagnosis when a provider is configured.
         if (services.aiProvider && (requestError || failedAssertions.length > 0)) {
           const businessContext = [
+            diagnosticText,
             workspaceKnowledgeSource(services.workspaceFolder).snapshot().body,
             runResultsKnowledgeSource(runStore, runIdArg).snapshot().body,
           ]
@@ -432,6 +439,7 @@ export const aiHandlers: McpToolHandler[] = [
               : requestError
                 ? ['Verify the URL is correct and reachable', 'Check all required environment variables are set', 'Inspect authentication headers']
                 : failedAssertions.map((a) => `Fix assertion "${a.name}": ${a.message ?? 'expected value mismatch'}`),
+          diagnostics,
         };
       }
 
@@ -1191,6 +1199,21 @@ export const aiHandlers: McpToolHandler[] = [
           placeholders: [...placeholders],
           iterations,
         },
+      };
+    },
+  },
+  {
+    toolNames: [GENERIC_TOOL_NAMES.suggestStructuralImprovements],
+    handle({ args, services, collections }) {
+      const col = resolveCollectionByLabel(args.collection, collections);
+      const suggestions = suggestStructuralImprovements(col);
+      return {
+        collection: col.name,
+        suggestions,
+        count: suggestions.length,
+        message: suggestions.length > 0
+          ? `${suggestions.length} structural improvement(s) suggested. Review and apply manually.`
+          : 'No structural improvements suggested. Collection looks clean.',
       };
     },
   },

@@ -19,6 +19,7 @@ import { requestHandlers } from './request';
 import { reviewHandlers } from './review';
 import { runStatusHandlers } from './run-status';
 import { suiteHandlers } from './suite';
+import { skillHandlers } from './skills';
 import { McpToolHandler } from './types';
 import { qaHandlers } from './qa';
 
@@ -33,6 +34,7 @@ const ALL_HANDLERS: McpToolHandler[] = [
   ...discoveryHandlers,
   ...qaHandlers,
   ...suiteHandlers,
+  ...skillHandlers,
   ...environmentManagementHandlers,
   ...aiHandlers,
   ...documentationHandlers,

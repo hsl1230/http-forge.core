@@ -180,6 +180,7 @@ export {
     collectionKnowledgeSource,
     createDefaultKnowledgeSources,
     gatherWorkspaceKnowledge,
+    gatherWorkspaceSkills,
     getRegisteredKnowledgeSources,
     registerKnowledgeSource,
     requestKnowledgeSource,

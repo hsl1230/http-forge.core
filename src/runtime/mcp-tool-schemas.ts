@@ -175,6 +175,8 @@ export const GENERIC_TOOL_NAMES = {
   reorderCollectionItems: 'reorder_collection_items',
   // ── Suite management ───────────────────────────────────────────────────
   listSuites: 'list_suites',
+  listSkills: 'list_skills',
+  getSkill: 'get_skill',
   getSuite: 'get_suite',
   createSuite: 'create_suite',
   updateSuiteConfig: 'update_suite_config',
@@ -213,6 +215,7 @@ export const GENERIC_TOOL_NAMES = {
   applyRequestEnhancements: 'apply_request_enhancements',
   aiSuggestEnvVars: 'ai_suggest_env_vars',
   aiEnhanceCollection: 'ai_enhance_collection',
+  suggestStructuralImprovements: 'suggest_structural_improvements',
   // ── Gap-closure tools ──────────────────────────────────────────────────────
   analyzeCoverage: 'analyze_coverage',
   aiAnalyzeCoverage: 'ai_analyze_coverage',
