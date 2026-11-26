@@ -15,7 +15,7 @@ import {
 import { diagnoseRequest, formatDiagnostics } from '../../infrastructure/analysis/request-diagnostics';
 import { extractJsonFromLlm, withAiRetry } from '../../infrastructure/ai/ai-utils';
 import { applyEnvSuggestionsToItems, detectEnvSuggestions } from '../../infrastructure/analysis/env-suggester';
-import { suggestStructuralImprovements } from '../../infrastructure/analysis/collection-enhancer';
+import { suggestStructuralImprovements, applyStructuralSuggestions } from '../../infrastructure/analysis/collection-enhancer';
 import { OpenApiImporter } from '../../infrastructure/openapi/openapi-importer';
 import { OpenApiExporter } from '../../infrastructure/openapi/openapi-exporter';
 import { SchemaInferenceService } from '../../infrastructure/openapi/schema-inference-service';
@@ -1212,8 +1212,45 @@ export const aiHandlers: McpToolHandler[] = [
         suggestions,
         count: suggestions.length,
         message: suggestions.length > 0
-          ? `${suggestions.length} structural improvement(s) suggested. Review and apply manually.`
+          ? `${suggestions.length} structural improvement(s) suggested. Review and apply with apply_structural_improvements.`
           : 'No structural improvements suggested. Collection looks clean.',
+      };
+    },
+  },
+
+  {
+    toolNames: [GENERIC_TOOL_NAMES.applyStructuralImprovements],
+    async handle({ args, services, collections }) {
+      const col = resolveCollectionByLabel(args.collection, collections);
+      const rawImprovements = args.improvements;
+      if (!Array.isArray(rawImprovements) || rawImprovements.length === 0) {
+        throw new Error('"improvements" must be a non-empty array');
+      }
+
+      // Convert raw improvements to StructuralSuggestion format
+      const suggestions = (rawImprovements as Array<{ targetId: string; type: string; proposedValue?: string }>).map((item) => ({
+        type: item.type as any,
+        targetId: item.targetId,
+        description: '',
+        proposedValue: item.proposedValue,
+      }));
+
+      // Apply structural suggestions (mutates collection in place)
+      const { applied, skipped } = applyStructuralSuggestions(col, suggestions);
+
+      // Persist changes to disk
+      if (applied > 0) {
+        await services.collection.saveCollection(col);
+      }
+
+      return {
+        collection: col.name,
+        applied,
+        skipped,
+        totalSuggestions: suggestions.length,
+        message: applied > 0
+          ? `${applied} improvement(s) applied and saved. ${skipped} skipped (no applicable changes).`
+          : `No improvements applied. ${skipped} skipped.`,
       };
     },
   },

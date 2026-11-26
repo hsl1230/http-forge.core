@@ -162,9 +162,25 @@ export function ensureForgeWorkspaceFiles(forgeDir: string): void {
     const assetsDir = path.join(forgeDir, 'assets');
     const libDir = path.join(assetsDir, 'lib');
     const srcDir = path.join(assetsDir, 'src');
+    const skillsDir = path.join(forgeDir, 'skills');
     fs.mkdirSync(assetsDir, { recursive: true });
     fs.mkdirSync(libDir, { recursive: true });
     fs.mkdirSync(srcDir, { recursive: true });
+    fs.mkdirSync(skillsDir, { recursive: true });
+
+    // Copy default skills (write-once)
+    const templateSkillsDir = path.join(__dirname, 'templates', 'skills');
+    if (fs.existsSync(templateSkillsDir)) {
+        for (const file of fs.readdirSync(templateSkillsDir)) {
+            if (file.endsWith('.md')) {
+                const src = path.join(templateSkillsDir, file);
+                const dest = path.join(skillsDir, file);
+                if (!fs.existsSync(dest)) {
+                    fs.copyFileSync(src, dest);
+                }
+            }
+        }
+    }
 
     // Workspace-level AI context files (write-once, never overwrite)
     const workspaceRoot = path.dirname(forgeDir);

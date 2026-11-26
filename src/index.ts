@@ -197,7 +197,7 @@ export type { IAiProvider } from './infrastructure/ai/ai-provider';
 export { extractJsonFromLlm, withAiRetry } from './infrastructure/ai/ai-utils';
 export type { AiRetryOptions } from './infrastructure/ai/ai-utils';
 export { AnthropicProvider, createEnvAiProvider, OpenAiProvider } from './infrastructure/ai/http-providers';
-export { enhanceCollection } from './infrastructure/analysis/collection-enhancer';
+export { enhanceCollection, suggestStructuralImprovements, applyStructuralSuggestions } from './infrastructure/analysis/collection-enhancer';
 export type { EnhanceProgressCallback } from './infrastructure/analysis/collection-enhancer';
 
 // ============================================================

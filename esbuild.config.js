@@ -101,8 +101,19 @@ async function build() {
     const templateDest = path.join(__dirname, 'dist', 'templates');
     if (fs.existsSync(templateSrc)) {
       fs.mkdirSync(templateDest, { recursive: true });
-      for (const entry of fs.readdirSync(templateSrc)) {
-        fs.copyFileSync(path.join(templateSrc, entry), path.join(templateDest, entry));
+      // Copy top-level template files
+      for (const entry of fs.readdirSync(templateSrc, { withFileTypes: true })) {
+        if (entry.isFile()) {
+          fs.copyFileSync(path.join(templateSrc, entry.name), path.join(templateDest, entry.name));
+        } else if (entry.isDirectory()) {
+          // Copy subdirectories (e.g., skills/)
+          const srcSub = path.join(templateSrc, entry.name);
+          const destSub = path.join(templateDest, entry.name);
+          fs.mkdirSync(destSub, { recursive: true });
+          for (const sub of fs.readdirSync(srcSub)) {
+            fs.copyFileSync(path.join(srcSub, sub), path.join(destSub, sub));
+          }
+        }
       }
     }
 

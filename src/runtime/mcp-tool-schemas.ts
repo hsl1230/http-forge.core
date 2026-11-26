@@ -216,6 +216,7 @@ export const GENERIC_TOOL_NAMES = {
   aiSuggestEnvVars: 'ai_suggest_env_vars',
   aiEnhanceCollection: 'ai_enhance_collection',
   suggestStructuralImprovements: 'suggest_structural_improvements',
+  applyStructuralImprovements: 'apply_structural_improvements',
   // ── Gap-closure tools ──────────────────────────────────────────────────────
   analyzeCoverage: 'analyze_coverage',
   aiAnalyzeCoverage: 'ai_analyze_coverage',

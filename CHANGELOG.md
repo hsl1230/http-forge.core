@@ -5,6 +5,29 @@ All notable changes to @http-forge/core will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## 1.1.0 - 2026-11-25
+
+### Added
+
+- **AI Features (Phase 1-4)**: BYOK (Bring Your Own Key) for AI providers, `--agent` CLI output mode, `http-forge init` scaffolding, Agent Skills directory + MCP tools + CLI commands.
+- **Inline autocomplete**: Monaco editor AI completion in Request Tester webview (Ctrl+Shift+Space) and VS Code InlineCompletionItemProvider for script files.
+- **AI debugging with diagnosis**: `request-diagnostics.ts` — env vars, auth headers, Content-Type, status, assertions, response time, empty body checks. Integrated into `explain_failure` MCP tool.
+- **AI test generation from response (inline)**: wired `aiSuggestAssertions` to Request Tester UI.
+- **AI collection enhancement (structural)**: `suggestStructuralImprovements()` + `applyStructuralSuggestions()` + `apply_structural_improvements` MCP tool.
+- **Browser → API test gen**: `generate-from-har` CLI command parses HAR files into collections.
+- **AI mock server**: `mock` CLI command with `--ai` flag for AI-generated responses.
+- **AI test coverage report**: Webview panel with heatmap + per-endpoint status table.
+- **Default skills**: 5 default AI skills (generate-tests, create-collection, diagnose-failure, ci-setup, create-test-suite) with format/data structure references.
+- **Test suite folder management**: create, rename, delete, move folders; drag-and-drop; multi-select run; composite suites; empty folder persistence.
+- `gatherWorkspaceSkills()` for loading `.http-forge/skills/` into AI prompts.
+- `AGENTS_MD_VERSION` bumped to 7 (template updated with test suite folder docs).
+
+### Changed
+
+- `saveSuiteToDisk` now supports subfolder paths.
+- `explain_failure` MCP tool includes `diagnostics` in response.
+- `list_suites` MCP tool includes `folderPath`.
+
 ## 1.0.9 - 2026-11-25
 
 ### Added

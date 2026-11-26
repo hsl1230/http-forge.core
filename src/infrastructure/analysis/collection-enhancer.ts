@@ -253,6 +253,40 @@ export function suggestStructuralImprovements(collection: Collection): Structura
     return suggestions;
 }
 
+/**
+ * Apply structural suggestions to a collection (mutates in place).
+ * Currently supports: rename (updates name), and returns the modified collection.
+ */
+export function applyStructuralSuggestions(
+    collection: Collection,
+    suggestions: StructuralSuggestion[]
+): { applied: number; skipped: number } {
+    let applied = 0;
+    let skipped = 0;
+    const requests = collectAllRequests(collection.items);
+
+    for (const suggestion of suggestions) {
+        const req = requests.find((r) => r.id === suggestion.targetId);
+        if (!req) { skipped++; continue; }
+
+        switch (suggestion.type) {
+            case 'rename':
+                if (suggestion.proposedValue) {
+                    req.name = suggestion.proposedValue;
+                    applied++;
+                } else {
+                    skipped++;
+                }
+                break;
+            default:
+                skipped++;
+                break;
+        }
+    }
+
+    return { applied, skipped };
+}
+
 function collectFolders(items: CollectionItem[]): CollectionItem[] {
     const folders: CollectionItem[] = [];
     const walk = (list: CollectionItem[]) => {
