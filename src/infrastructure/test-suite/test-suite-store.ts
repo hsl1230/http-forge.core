@@ -474,8 +474,30 @@ export class TestSuiteStore implements ITestSuiteStore {
     }> {
         if (!this.suite) return [];
 
+        // Collect all request nodes recursively (including those nested in blocks/if/switch/for/while)
+        const collectRequestNodes = (nodes: any[]): any[] => {
+            const result: any[] = [];
+            for (const n of nodes || []) {
+                if (n?.type === 'request') result.push(n);
+                if (Array.isArray(n?.nodes)) result.push(...collectRequestNodes(n.nodes));
+                if (Array.isArray(n?.then)) result.push(...collectRequestNodes(n.then));
+                if (Array.isArray(n?.else)) result.push(...collectRequestNodes(n.else));
+                if (Array.isArray(n?.elseif)) {
+                    for (const b of n.elseif) {
+                        if (Array.isArray(b?.nodes)) result.push(...collectRequestNodes(b.nodes));
+                    }
+                }
+                if (Array.isArray(n?.cases)) {
+                    for (const c of n.cases) {
+                        if (Array.isArray(c?.nodes)) result.push(...collectRequestNodes(c.nodes));
+                    }
+                }
+                if (Array.isArray(n?.default)) result.push(...collectRequestNodes(n.default));
+            }
+            return result;
+        };
         const allNodes: any[] = this.suite.nodes || [];
-        const requestNodes = allNodes.filter(n => n.type === 'request');
+        const requestNodes = collectRequestNodes(allNodes);
         const allSlugs: string[] = requestNodes.map((n: any) => n.request?.slug || '').filter(Boolean);
 
         // Many collections are opened as temporary suites whose suite directory
@@ -709,8 +731,30 @@ export class TestSuiteStore implements ITestSuiteStore {
      * Nodes is the sole source of truth — no suite.requests access.
      */
     private _getRequestNodes(): SuiteRequest[] {
-        return (this.suite?.nodes || [])
-            .filter((n: any) => n.type === 'request' && n.request)
-            .map((n: any) => n.request as SuiteRequest);
+        const result: SuiteRequest[] = [];
+        const walk = (nodes: any[]) => {
+            for (const n of nodes || []) {
+                if (n?.type === 'request' && n?.request) {
+                    result.push(n.request as SuiteRequest);
+                }
+                // Traverse into container nodes
+                if (Array.isArray(n?.nodes)) walk(n.nodes);
+                if (Array.isArray(n?.then)) walk(n.then);
+                if (Array.isArray(n?.else)) walk(n.else);
+                if (Array.isArray(n?.elseif)) {
+                    for (const b of n.elseif) {
+                        if (Array.isArray(b?.nodes)) walk(b.nodes);
+                    }
+                }
+                if (Array.isArray(n?.cases)) {
+                    for (const c of n.cases) {
+                        if (Array.isArray(c?.nodes)) walk(c.nodes);
+                    }
+                }
+                if (Array.isArray(n?.default)) walk(n.default);
+            }
+        };
+        walk(this.suite?.nodes || []);
+        return result;
     }
 }

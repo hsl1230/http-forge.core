@@ -424,6 +424,8 @@ export class SuiteExecutor {
       result.collectionName = collection.name;
       result.groupPath = grouping.groupPath;
       result.groupType = grouping.groupType;
+      result.requestId = req.requestId;
+      result.name = req.name;
       await resultStorage.saveResult(iter, result);
 
       if (!(result.assertions?.length)) {
@@ -439,6 +441,7 @@ export class SuiteExecutor {
       if (include.includes('perRequest')) {
         perRequestResults.push({
           name: req.name,
+          requestId: req.requestId,
           iteration: iter,
           status: result.response?.status,
           ok: isSuccessfulExecutionStatus(result.response?.status, execReq.requestType),
@@ -453,6 +456,7 @@ export class SuiteExecutor {
       if (!result.passed) {
         failedResults.push({
           name: req.name,
+          requestId: req.requestId,
           iteration: iter,
           method: result.executedRequest?.method,
           url: result.executedRequest?.url,
