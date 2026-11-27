@@ -200,6 +200,53 @@ describe('TestSuiteService storage modes', () => {
         expect(fs.readFileSync(path.join(suiteDir, 'scripts', 'vars.js'), 'utf-8')).toBe('fresh();');
     });
 
+    it('saving a suite persists external scripts nested in a loaded external block', async () => {
+        const { service, suitesDir } = makeService();
+        const blockNode = {
+            type: 'block',
+            name: 'Setup',
+            storage: 'external',
+            blockRef: 'setup',
+            nodes: [
+                { type: 'script', name: 'Vars', storage: 'external', scriptRef: 'vars', script: 'nested();' },
+            ],
+        };
+        await service.updateSuite(suite('s10', 'S10', { nodes: [blockNode] }));
+
+        expect(fs.readFileSync(path.join(suitesDir, 's10', 'scripts', 'vars.js'), 'utf-8'))
+            .toBe('nested();');
+        const block = JSON.parse(fs.readFileSync(path.join(suitesDir, 's10', 'blocks', 'setup.block.json'), 'utf-8'));
+        expect(block.nodes).toHaveLength(1);
+        expect(block.nodes[0].script).toBeUndefined();
+        expect(block.nodes[0].storage).toBe('external');
+
+        const saved = readSuiteJson(suitesDir, 's10');
+        expect(saved.nodes[0].blockRef).toBe('blocks/setup.block.json');
+        expect(saved.nodes[0].nodes).toEqual([]);
+    });
+
+    it('saving a suite flushes external scripts inside an unexpanded external block', async () => {
+        const { service, suitesDir } = makeService();
+        const suiteDir = path.join(suitesDir, 's11');
+        fs.mkdirSync(path.join(suiteDir, 'blocks'), { recursive: true });
+        fs.writeFileSync(path.join(suiteDir, 'blocks', 'setup.block.json'), JSON.stringify({
+            id: 'setup', name: 'Setup', nodes: [
+                { type: 'script', storage: 'external', scriptRef: 'vars', script: 'lazyNested();' },
+            ],
+        }), 'utf-8');
+        fs.writeFileSync(path.join(suiteDir, 'suite.json'), JSON.stringify(suite('s11', 'S11', {
+            nodes: [{ type: 'block', name: 'Setup', storage: 'external', blockRef: 'blocks/setup.block.json', nodes: [] }],
+        })), 'utf-8');
+
+        service.loadSuites();
+        const loaded = await service.getSuite('s11');
+        await service.updateSuite(loaded!);
+
+        expect(fs.readFileSync(path.join(suiteDir, 'scripts', 'vars.js'), 'utf-8')).toBe('lazyNested();');
+        const block = JSON.parse(fs.readFileSync(path.join(suiteDir, 'blocks', 'setup.block.json'), 'utf-8'));
+        expect(block.nodes[0].script).toBeUndefined();
+    });
+
     it('materializes external scripts and blocks for execution', () => {
         const { suitesDir } = makeService();
         const suiteDir = path.join(suitesDir, 's7');

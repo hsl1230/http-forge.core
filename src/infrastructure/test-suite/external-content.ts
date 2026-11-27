@@ -210,14 +210,13 @@ export function persistExternalContent(
 export function materializeExternalContent(
     nodes: any[],
     suiteDir: string | undefined,
-    scripts?: Record<string, unknown>,
-    includeScripts = true
+    scripts?: Record<string, unknown>
 ): any[] {
     const walk = (list: any[]): any[] => (list || []).map(node => {
         if (!node || typeof node !== 'object') return node;
         const n: any = { ...node };
 
-        if (includeScripts && n.type === 'script' && n.script === undefined && typeof n.scriptRef === 'string') {
+        if (n.type === 'script' && n.script === undefined && typeof n.scriptRef === 'string') {
             const ref = n.scriptRef.trim().replace(/\\/g, '/');
             const lib = scripts?.[n.scriptRef] ?? scripts?.[ref];
             if (typeof lib === 'string') {
