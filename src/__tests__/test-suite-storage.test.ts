@@ -163,6 +163,43 @@ describe('TestSuiteService storage modes', () => {
         expect(block.nodes).toHaveLength(1);
     });
 
+    it('saveBlockFile moves inline script content to an external file and clears it', () => {
+        const { service, suitesDir } = makeService();
+        const suiteDir = path.join(suitesDir, 's8');
+        const blockPath = path.join(suiteDir, 'blocks', 'setup.block.json');
+
+        service.saveBlockFile(blockPath, suiteDir, {
+            id: 'Setup',
+            name: 'Setup',
+            nodes: [
+                { type: 'script', name: 'Setup vars', storage: 'external', scriptRef: 'vars', script: 'pm.variables.set("x", 1);' },
+            ],
+        });
+
+        expect(fs.readFileSync(path.join(suiteDir, 'scripts', 'vars.js'), 'utf-8'))
+            .toBe('pm.variables.set("x", 1);');
+        const saved = JSON.parse(fs.readFileSync(blockPath, 'utf-8'));
+        expect(saved.nodes[0].script).toBeUndefined();
+        expect(saved.nodes[0].storage).toBe('external');
+        expect(saved.nodes[0].scriptRef).toBe('vars');
+    });
+
+    it('does not overwrite an existing external script with a stale library copy', () => {
+        const { service, suitesDir } = makeService();
+        const suiteDir = path.join(suitesDir, 's9');
+        const blockPath = path.join(suiteDir, 'blocks', 'setup.block.json');
+        fs.mkdirSync(path.join(suiteDir, 'scripts'), { recursive: true });
+        fs.writeFileSync(path.join(suiteDir, 'scripts', 'vars.js'), 'fresh();', 'utf-8');
+
+        service.saveBlockFile(blockPath, suiteDir, {
+            id: 'Setup',
+            name: 'Setup',
+            nodes: [{ type: 'script', storage: 'external', scriptRef: 'vars' }],
+        }, { vars: 'stale();' });
+
+        expect(fs.readFileSync(path.join(suiteDir, 'scripts', 'vars.js'), 'utf-8')).toBe('fresh();');
+    });
+
     it('materializes external scripts and blocks for execution', () => {
         const { suitesDir } = makeService();
         const suiteDir = path.join(suitesDir, 's7');

@@ -13,6 +13,7 @@ import {
 } from '../../types/collection';
 import { generateId } from '../../utils/helpers';
 import { IConfigService } from '../config';
+import { persistExternalContent } from './external-content';
 import {
     DEFAULT_SUITE_CONFIG,
     ITestSuiteService,
@@ -725,156 +726,9 @@ export class TestSuiteService implements ITestSuiteService {
             updatedAt: suite.updatedAt ?? Date.now()
         };
 
-        // Normalize external refs to their canonical suite-relative paths.
-        const normalizeScriptRef = (ref: string): string => {
-            const name = ref.replace(/\\/g, '/').replace(/^\.\//, '').replace(/^scripts\//, '').replace(/\.js$/, '');
-            return name ? `scripts/${name}.js` : '';
-        };
-        const normalizeBlockRef = (ref: string): string => {
-            const normalized = ref.replace(/\\/g, '/').replace(/^\.\//, '');
-            if (normalized.startsWith('blocks/')) {
-                return normalized.endsWith('.block.json') ? normalized : `${normalized}.block.json`;
-            }
-            return `blocks/${normalized.replace(/\.block\.json$/, '')}.block.json`;
-        };
-        const isPathLikeScriptRef = (ref: string): boolean =>
-            ref.includes('/') || ref.includes('\\') || ref.endsWith('.js');
-
-        // Write external script files and move content back inline when switching.
-        const writeExternalScripts = (nodes: any[]) => {
-            for (const node of nodes || []) {
-                if (node?.type === 'script') {
-                    const rawRef = typeof node.scriptRef === 'string' ? node.scriptRef.trim() : '';
-                    const explicitExternal = node.storage === 'external';
-                    if (rawRef && (explicitExternal || isPathLikeScriptRef(rawRef))) {
-                        const canonical = normalizeScriptRef(rawRef);
-                        const scriptPath = path.join(suiteDir, canonical);
-                        fs.mkdirSync(path.dirname(scriptPath), { recursive: true });
-
-                        let scriptContent: string | undefined;
-                        if (typeof node.script === 'string') {
-                            scriptContent = node.script;
-                        } else if (suite.scripts && typeof suite.scripts[rawRef] === 'string') {
-                            scriptContent = suite.scripts[rawRef] as string;
-                        } else if (suite.scripts && typeof suite.scripts[canonical] === 'string') {
-                            scriptContent = suite.scripts[canonical] as string;
-                        }
-                        if (scriptContent === undefined) {
-                            // Preserve the existing file rather than truncating lazily-loaded content.
-                            scriptContent = fs.existsSync(scriptPath) ? fs.readFileSync(scriptPath, 'utf-8') : '';
-                        }
-                        fs.writeFileSync(scriptPath, scriptContent, 'utf-8');
-
-                        delete node.script;
-                        node.storage = 'external';
-                        // Content now lives in the file — remove inline library copies.
-                        if (suite.scripts) {
-                            delete suite.scripts[rawRef];
-                            delete suite.scripts[canonical];
-                        }
-                    } else if (rawRef && (isPathLikeScriptRef(rawRef) || node.storage === 'inline')) {
-                        // Switching back to inline: move file content into the node, then remove the file.
-                        // Leave plain inline-library keys alone when no external file exists.
-                        const canonical = normalizeScriptRef(rawRef);
-                        const scriptPath = path.join(suiteDir, canonical);
-                        const fileExists = fs.existsSync(scriptPath);
-                        if (fileExists) {
-                            if (!node.script || (typeof node.script === 'string' && !node.script.trim())) {
-                                try {
-                                    node.script = fs.readFileSync(scriptPath, 'utf-8');
-                                } catch {
-                                    // ignore
-                                }
-                            }
-                            fs.unlinkSync(scriptPath);
-                            delete node.scriptRef;
-                        } else if (isPathLikeScriptRef(rawRef) && node.script !== undefined) {
-                            // Dangling external path ref with inline content — drop the ref.
-                            delete node.scriptRef;
-                        }
-                    }
-                }
-                if (Array.isArray(node?.nodes)) writeExternalScripts(node.nodes);
-                if (Array.isArray(node?.then)) writeExternalScripts(node.then);
-                if (Array.isArray(node?.else)) writeExternalScripts(node.else);
-                if (Array.isArray(node?.elseif)) {
-                    for (const b of node.elseif) {
-                        if (Array.isArray(b?.nodes)) writeExternalScripts(b.nodes);
-                    }
-                }
-                if (Array.isArray(node?.cases)) {
-                    for (const c of node.cases) {
-                        if (Array.isArray(c?.nodes)) writeExternalScripts(c.nodes);
-                    }
-                }
-                if (Array.isArray(node?.default)) writeExternalScripts(node.default);
-            }
-        };
-        writeExternalScripts(suite.nodes);
-
-        // Write external block files (storage: 'external')
-        const writeExternalBlocks = (nodes: any[]) => {
-            for (const node of nodes || []) {
-                if (node?.type === 'block' && node.storage === 'external' && node.blockRef) {
-                    const blockRef = normalizeBlockRef(node.blockRef);
-                    node.blockRef = blockRef;
-                    const blockPath = path.join(suiteDir, blockRef);
-                    fs.mkdirSync(path.dirname(blockPath), { recursive: true });
-
-                    let blockNodes = Array.isArray(node.nodes) ? node.nodes : [];
-                    if (blockNodes.length === 0 && fs.existsSync(blockPath)) {
-                        // Lazily-loaded content was never read; preserve the existing file.
-                        try {
-                            const existing = JSON.parse(fs.readFileSync(blockPath, 'utf-8'));
-                            blockNodes = Array.isArray(existing.nodes) ? existing.nodes : [];
-                        } catch {
-                            // ignore
-                        }
-                    }
-                    // Materialize nested external scripts/blocks before writing the block file.
-                    writeExternalScripts(blockNodes);
-                    writeExternalBlocks(blockNodes);
-
-                    fs.writeFileSync(blockPath, JSON.stringify({
-                        id: node.name || 'block',
-                        name: node.name || 'Block',
-                        nodes: blockNodes,
-                    }, null, 2), 'utf-8');
-                    // Clear inline nodes from JSON — content lives in the external file.
-                    node.nodes = [];
-                } else if (node?.type === 'block' && node.storage !== 'external' && node.blockRef) {
-                    const blockRef = normalizeBlockRef(node.blockRef);
-                    const blockPath = path.join(suiteDir, blockRef);
-                    if ((!node.nodes || node.nodes.length === 0) && fs.existsSync(blockPath)) {
-                        try {
-                            const blockData = JSON.parse(fs.readFileSync(blockPath, 'utf-8'));
-                            node.nodes = blockData.nodes || [];
-                        } catch {
-                            // ignore
-                        }
-                    }
-                    if (fs.existsSync(blockPath)) {
-                        fs.unlinkSync(blockPath);
-                    }
-                    delete node.blockRef;
-                }
-                if (Array.isArray(node?.nodes)) writeExternalBlocks(node.nodes);
-                if (Array.isArray(node?.then)) writeExternalBlocks(node.then);
-                if (Array.isArray(node?.else)) writeExternalBlocks(node.else);
-                if (Array.isArray(node?.elseif)) {
-                    for (const b of node.elseif) {
-                        if (Array.isArray(b?.nodes)) writeExternalBlocks(b.nodes);
-                    }
-                }
-                if (Array.isArray(node?.cases)) {
-                    for (const c of node.cases) {
-                        if (Array.isArray(c?.nodes)) writeExternalBlocks(c.nodes);
-                    }
-                }
-                if (Array.isArray(node?.default)) writeExternalBlocks(node.default);
-            }
-        };
-        writeExternalBlocks(suite.nodes);
+        // Move external script/block content out of the JSON and into files
+        // beside the suite, or move it back inline when switched.
+        persistExternalContent(suite.nodes, suiteDir, suite.scripts);
 
         const content = JSON.stringify(normalizedSuite, null, 2);
         fs.writeFileSync(tempPath, content, 'utf-8');
@@ -910,6 +764,27 @@ export class TestSuiteService implements ITestSuiteService {
             }
         };
         walkAndClean(this.suitesDir);
+    }
+
+    /**
+     * Persist an external block file, moving any external scripts/nested blocks
+     * inside it to their sibling files first. Used when a block is edited in its
+     * own panel (the block file is the unit of save).
+     */
+    public saveBlockFile(
+        blockPath: string,
+        suiteDir: string,
+        block: { id: string; name: string; nodes?: any[] },
+        scripts?: Record<string, unknown>
+    ): void {
+        const nodes = Array.isArray(block.nodes) ? block.nodes : [];
+        persistExternalContent(nodes, suiteDir, scripts);
+        fs.mkdirSync(path.dirname(blockPath), { recursive: true });
+        fs.writeFileSync(blockPath, JSON.stringify({
+            id: block.id,
+            name: block.name,
+            nodes,
+        }, null, 2), 'utf-8');
     }
 
     public async getAllSuiteIds(): Promise<string[]> {
