@@ -21,12 +21,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Test suite folder management**: create, rename, delete, move folders; drag-and-drop; multi-select run; composite suites; empty folder persistence.
 - `gatherWorkspaceSkills()` for loading `.http-forge/skills/` into AI prompts.
 - `AGENTS_MD_VERSION` bumped to 7 (template updated with test suite folder docs).
+- **Test Suite storage modes**: suites persist as `{suite-id}/suite.json` (legacy flat `*.suite.json` auto-converts on save) with external `scripts/*.js` and `blocks/*.block.json` content. `materializeExternalContent()` / `resolveSuiteDirectory()` resolve external content at execution time, and `TestSuite.suiteDirOverride`/`externalBlockPath` support in-place external block editing.
 
 ### Changed
 
 - `saveSuiteToDisk` now supports subfolder paths.
 - `explain_failure` MCP tool includes `diagnostics` in response.
 - `list_suites` MCP tool includes `folderPath`.
+
+### Fixed
+
+- Saving one suite no longer deletes other suites' `suite.json` files, and deleting a legacy flat suite no longer removes the whole suites directory.
+- Saving a suite whose external block was never expanded preserves the existing block file instead of truncating it.
+- Inline ↔ external script and block switches now move content in both directions and remove the external file.
+- The suite watcher now reacts to `suite.json`, legacy `*.suite.json`, and `scripts/`/`blocks/` changes.
 
 ## 1.0.9 - 2026-11-25
 

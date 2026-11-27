@@ -69,11 +69,18 @@ export class MarkdownSummaryGenerator {
         // Try to load suite definition (if suitesPath was provided)
         let suiteDef: any = undefined;
         if (this.suitesPath) {
-            try {
-                const suiteFile = path.join(this.suitesPath, `${suiteId}.suite.json`);
-                suiteDef = JSON.parse(await fsp.readFile(suiteFile, 'utf-8'));
-            } catch {
-                suiteDef = undefined;
+            // New format: <suites>/<id>/suite.json — legacy: <suites>/<id>.suite.json
+            const candidates = [
+                path.join(this.suitesPath, suiteId, 'suite.json'),
+                path.join(this.suitesPath, `${suiteId}.suite.json`),
+            ];
+            for (const suiteFile of candidates) {
+                try {
+                    suiteDef = JSON.parse(await fsp.readFile(suiteFile, 'utf-8'));
+                    break;
+                } catch {
+                    suiteDef = undefined;
+                }
             }
         }
 

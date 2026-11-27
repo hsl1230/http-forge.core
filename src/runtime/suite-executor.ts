@@ -104,30 +104,34 @@ export class SuiteExecutor {
         return undefined;
       }
 
+      const ref = typeof node.scriptRef === 'string' ? node.scriptRef.trim() : '';
+      const explicitExternal = node.storage === 'external';
+
+      // Inline content takes precedence only in inline mode.
+      if (!explicitExternal && node.script !== undefined) {
+        return node.script;
+      }
+
+      // External script file: relative to scripts/ directory. Accepts
+      // "setup", "setup.js", "scripts/setup.js" — all resolve to scripts/setup.js.
+      if (ref && !ref.includes('{{') && suiteDir) {
+        const scriptName = ref.replace(/\\/g, '/').replace(/^scripts\//, '').replace(/\.js$/, '') + '.js';
+        try {
+          const scriptPath = path.join(suiteDir, 'scripts', scriptName);
+          if (fs.existsSync(scriptPath)) {
+            return fs.readFileSync(scriptPath, 'utf-8');
+          }
+        } catch {
+          // Fall through to inline lookup
+        }
+      }
+
       if (node.script !== undefined) {
         return node.script;
       }
 
-      if (typeof node.scriptRef === 'string' && node.scriptRef.trim()) {
-        const ref = node.scriptRef.trim();
-        // Mode 1: File path (contains / or ends with .js)
-        // External script file: relative to scripts/ directory
-        // Accepts: "setup", "setup.js", "scripts/setup.js" — all resolve to scripts/setup.js
-        const scriptName = ref.replace(/^scripts\//, '').replace(/\.js$/, '') + '.js';
-        if (ref && !ref.includes('{{')) {
-          try {
-            const sd = suiteDir || '';
-            if (sd) {
-              const scriptPath = path.join(sd, 'scripts', scriptName);
-              if (fs.existsSync(scriptPath)) {
-                return fs.readFileSync(scriptPath, 'utf-8');
-              }
-            }
-          } catch {
-            // Fall through to inline lookup
-          }
-        }
-        // Mode 2: Inline key lookup (existing behavior)
+      // Inline library lookup (legacy scriptRef keys).
+      if (ref) {
         const library = suite?.scripts;
         if (library && typeof library === 'object') {
           return (library as Record<string, unknown>)[ref];
@@ -545,20 +549,22 @@ export class SuiteExecutor {
       const thenNodes = resolveChildren(node, ['then', 'nodes', 'body']);
 
       if (type === 'block') {
-        // Resolve external block: load from file if storage === 'external'
+        // Resolve external block: read the file at execution time so external
+        // edits are reflected (no persistent content cache).
         let blockNodes = thenNodes;
-        if (node.storage === 'external' && node.blockRef && (!blockNodes || blockNodes.length === 0)) {
+        if (node.storage === 'external' && node.blockRef && suiteDir) {
           try {
-            const ref = String(node.blockRef).replace(/^\.\//, '');
-            const blockName = ref.includes('/') ? ref.split('/').pop()! : ref;
-            const blockFileName = blockName.endsWith('.block.json') ? blockName : `${blockName}.block.json`;
-            const blockPath = path.join(suiteDir || '', 'blocks', blockFileName.replace(/^blocks\//, ''));
+            const ref = String(node.blockRef).replace(/\\/g, '/').replace(/^\.\//, '');
+            const blockRef = ref.startsWith('blocks/')
+              ? (ref.endsWith('.block.json') ? ref : `${ref}.block.json`)
+              : `blocks/${ref.replace(/\.block\.json$/, '')}.block.json`;
+            const blockPath = path.join(suiteDir, blockRef);
             if (fs.existsSync(blockPath)) {
               const blockData = JSON.parse(fs.readFileSync(blockPath, 'utf-8'));
               blockNodes = blockData.nodes || [];
             }
           } catch {
-            // Fall through — execute with empty nodes
+            // Fall through — execute with in-memory nodes
           }
         }
         const nextBlockLabel = typeof node.name === 'string' ? node.name.trim() : '';

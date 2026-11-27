@@ -199,6 +199,16 @@ export interface TestSuite {
     updatedAt: number;
     /** Relative folder path within the suites directory (empty string for root-level suites) */
     folderPath?: string;
+    /**
+     * Optional directory used to resolve external scripts/blocks for this suite.
+     * Set when editing an external block in an otherwise temporary panel.
+     */
+    suiteDirOverride?: string;
+    /**
+     * When set, saving writes the suite definition back to this block file
+     * (`{ id, name, nodes }`) instead of creating a suite on disk.
+     */
+    externalBlockPath?: string;
 }
 
 /**

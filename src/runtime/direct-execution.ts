@@ -17,6 +17,7 @@
  */
 
 import type { ServiceContainer } from '../di/service-container';
+import { materializeExternalContent, resolveSuiteDirectory } from '../infrastructure/test-suite/external-content';
 import { InMemoryCookieJar } from '../infrastructure/cookie/in-memory-cookie-jar';
 import { CollectionRequestExecutor } from '../infrastructure/execution/collection-request-executor';
 import { JUnitReportGenerator } from '../infrastructure/test-suite/junit-report-generator';
@@ -379,6 +380,8 @@ export async function runSuites(options: RunSuitesOptions): Promise<unknown> {
   try {
     container.scriptExecutor?.beginRun?.();
     const testSuiteService = container.testSuite;
+    const configService = container.config;
+    const suitesDir = configService?.getSuitesPath?.() ?? '';
 
     const suiteIds = options.suiteIds ?? [];
     if (suiteIds.length === 0) {
@@ -402,7 +405,11 @@ export async function runSuites(options: RunSuitesOptions): Promise<unknown> {
         nodes: suites.map(suite => ({
             type: 'block' as const,
             name: suite.name,
-            nodes: (suite.nodes ?? []) as any[],
+            nodes: materializeExternalContent(
+                (suite.nodes ?? []) as any[],
+                resolveSuiteDirectory(suitesDir, suite),
+                suite.scripts
+            ),
             enabled: true,
         })),
         config: {
