@@ -155,7 +155,31 @@ export class TestSuiteService implements ITestSuiteService {
                             name: raw.name,
                             description: raw.description,
                             scripts: raw.scripts || {},
-                            nodes,
+                            nodes: (raw.nodes || []).map((node: any) => {
+                                // Resolve external blocks: read from file and inline
+                                if (node?.type === 'block' && node.storage === 'external' && node.blockRef) {
+                                    const suiteDir = path.join(dir, raw.id);
+                                    let blockRef = node.blockRef.replace(/^\.\//, '');
+                                    if (!blockRef.includes('/') && !blockRef.endsWith('.block.json')) {
+                                        blockRef = `blocks/${blockRef}.block.json`;
+                                    } else if (!blockRef.endsWith('.block.json')) {
+                                        blockRef = blockRef + '.block.json';
+                                    }
+                                    if (!blockRef.startsWith('blocks/')) {
+                                        blockRef = 'blocks/' + blockRef;
+                                    }
+                                    const blockPath = path.join(suiteDir, blockRef);
+                                    if (fs.existsSync(blockPath)) {
+                                        try {
+                                            const blockData = JSON.parse(fs.readFileSync(blockPath, 'utf-8'));
+                                            return { ...node, nodes: blockData.nodes || [], blockRef };
+                                        } catch {
+                                            return node;
+                                        }
+                                    }
+                                }
+                                return node;
+                            }),
                             config: (() => {
                                 const rawConfig = raw.config ?? {};
                                 const normalized: SuiteConfig = { ...DEFAULT_SUITE_CONFIG, ...rawConfig };
@@ -187,8 +211,9 @@ export class TestSuiteService implements ITestSuiteService {
                         const resolveExternalScripts = (nodes: any[]) => {
                             for (const node of nodes || []) {
                                 if (node?.type === 'script' && typeof node.scriptRef === 'string' && (node.scriptRef.includes('/') || node.scriptRef.endsWith('.js'))) {
-                                    const suiteDir = path.join(this.suitesDir, suite.id);
-                                    const fullPath = path.join(suiteDir, node.scriptRef.replace(/^\.\//, ''));
+                                    const suiteDir = path.join(dir, raw.id);
+                                    const scriptName = node.scriptRef.replace(/^scripts\//, '').replace(/\.js$/, '') + '.js';
+                                    const fullPath = path.join(suiteDir, 'scripts', scriptName);
                                     if (fs.existsSync(fullPath)) {
                                         const content = fs.readFileSync(fullPath, 'utf-8');
                                         // Store as inline key for in-memory access
@@ -690,13 +715,14 @@ export class TestSuiteService implements ITestSuiteService {
             updatedAt: suite.updatedAt ?? Date.now()
         };
 
-        // Write external script files (scriptRef with file path)
-        const suiteDir = path.join(this.suitesDir, suite.id);
+        // Write external script files (scriptRef with file path) and external blocks
+        const suiteDir = path.join(targetDir, suite.id);
         const writeExternalScripts = (nodes: any[]) => {
             for (const node of nodes || []) {
-                if (node?.type === 'script' && typeof node.scriptRef === 'string' && (node.scriptRef.includes('/') || node.scriptRef.endsWith('.js'))) {
-                    const ref = node.scriptRef.replace(/^\.\//, '');
-                    const scriptPath = path.join(suiteDir, ref);
+                if (node?.type === 'script' && typeof node.scriptRef === 'string' && node.scriptRef.trim()) {
+                    // External script
+                    const scriptName = node.scriptRef.replace(/^scripts\//, '').replace(/\.js$/, '') + '.js';
+                    const scriptPath = path.join(suiteDir, 'scripts', scriptName);
                     fs.mkdirSync(path.dirname(scriptPath), { recursive: true });
                     // Get script content from node.script or suite.scripts
                     let scriptContent = '';
@@ -709,6 +735,30 @@ export class TestSuiteService implements ITestSuiteService {
                     if (scriptContent) {
                         fs.writeFileSync(scriptPath, scriptContent, 'utf-8');
                     }
+                } else if (node?.type === 'script' && !node.scriptRef && node.storage !== 'external') {
+                    // Switching to inline: if script was previously external, load from file
+                    // (handled by the fact that node.script should already be set from the webview)
+                    // Delete any stale external script file
+                    // (no-op if no file exists)
+                }
+
+                // Handle script switching from external to inline
+                if (node?.type === 'script' && node.storage !== 'external' && node.scriptRef && (node.scriptRef.includes('/') || node.scriptRef.endsWith('.js'))) {
+                    const scriptName = node.scriptRef.replace(/^scripts\//, '').replace(/\.js$/, '') + '.js';
+                    const scriptPath = path.join(suiteDir, 'scripts', scriptName);
+                    // Load content from file if node.script is empty
+                    if ((!node.script || (typeof node.script === 'string' && !node.script.trim())) && fs.existsSync(scriptPath)) {
+                        try {
+                            node.script = fs.readFileSync(scriptPath, 'utf-8');
+                        } catch {
+                            // ignore
+                        }
+                    }
+                    // Delete external file
+                    if (fs.existsSync(scriptPath)) {
+                        fs.unlinkSync(scriptPath);
+                    }
+                    delete node.scriptRef;
                 }
                 if (Array.isArray(node?.nodes)) writeExternalScripts(node.nodes);
                 if (Array.isArray(node?.then)) writeExternalScripts(node.then);
@@ -727,6 +777,65 @@ export class TestSuiteService implements ITestSuiteService {
             }
         };
         writeExternalScripts(suite.nodes);
+
+        // Write external block files (storage: 'external')
+        const writeExternalBlocks = (nodes: any[]) => {
+            for (const node of nodes || []) {
+                if (node?.type === 'block' && node.storage === 'external' && node.blockRef) {
+                    let blockRef = node.blockRef.replace(/^\.\//, '');
+                    if (!blockRef.includes('/') && !blockRef.endsWith('.block.json')) {
+                        blockRef = `blocks/${blockRef}.block.json`;
+                    } else if (!blockRef.endsWith('.block.json')) {
+                        blockRef = blockRef + '.block.json';
+                    }
+                    if (!blockRef.startsWith('blocks/')) {
+                        blockRef = 'blocks/' + blockRef;
+                    }
+                    node.blockRef = blockRef;
+                    const blockPath = path.join(suiteDir, blockRef);
+                    fs.mkdirSync(path.dirname(blockPath), { recursive: true });
+                    fs.writeFileSync(blockPath, JSON.stringify({
+                        id: node.name || 'block',
+                        name: node.name || 'Block',
+                        nodes: Array.isArray(node.nodes) ? node.nodes : [],
+                    }, null, 2), 'utf-8');
+                    // Clear inline nodes from JSON since they're now external (resolved on load)
+                    node.nodes = [];
+                }
+                // Delete external file if switching to inline
+                if (node?.type === 'block' && node.storage !== 'external' && node.blockRef) {
+                    const blockPath = path.join(suiteDir, node.blockRef);
+                    // If nodes is empty, load from external file before deleting
+                    if ((!node.nodes || node.nodes.length === 0) && fs.existsSync(blockPath)) {
+                        try {
+                            const blockData = JSON.parse(fs.readFileSync(blockPath, 'utf-8'));
+                            node.nodes = blockData.nodes || [];
+                        } catch {
+                            // ignore
+                        }
+                    }
+                    if (fs.existsSync(blockPath)) {
+                        fs.unlinkSync(blockPath);
+                    }
+                    delete node.blockRef;
+                }
+                if (Array.isArray(node?.nodes)) writeExternalBlocks(node.nodes);
+                if (Array.isArray(node?.then)) writeExternalBlocks(node.then);
+                if (Array.isArray(node?.else)) writeExternalBlocks(node.else);
+                if (Array.isArray(node?.elseif)) {
+                    for (const b of node.elseif) {
+                        if (Array.isArray(b?.nodes)) writeExternalBlocks(b.nodes);
+                    }
+                }
+                if (Array.isArray(node?.cases)) {
+                    for (const c of node.cases) {
+                        if (Array.isArray(c?.nodes)) writeExternalBlocks(c.nodes);
+                    }
+                }
+                if (Array.isArray(node?.default)) writeExternalBlocks(node.default);
+            }
+        };
+        writeExternalBlocks(suite.nodes);
 
         const content = JSON.stringify(normalizedSuite, null, 2);
         fs.writeFileSync(tempPath, content, 'utf-8');

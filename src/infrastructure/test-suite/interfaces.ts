@@ -106,10 +106,12 @@ export interface SuiteWhileNode extends SuiteFlowNodeBase {
 
 export interface SuiteScriptNode extends SuiteFlowNodeBase {
     type: 'script';
-    /** Inline script source */
+    /** Inline script source (only when storage === 'inline') */
     script?: string | string[];
-    /** Reusable script key from TestSuite.scripts */
+    /** Script reference — key (inline) or file name (external) */
     scriptRef?: string;
+    /** Storage mode. Default: 'inline'. */
+    storage?: 'inline' | 'external';
     /** Optional phase hint. Defaults to 'pre'. */
     phase?: 'pre' | 'post';
 }

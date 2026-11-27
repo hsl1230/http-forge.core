@@ -111,11 +111,14 @@ export class SuiteExecutor {
       if (typeof node.scriptRef === 'string' && node.scriptRef.trim()) {
         const ref = node.scriptRef.trim();
         // Mode 1: File path (contains / or ends with .js)
-        if (ref.includes('/') || ref.endsWith('.js')) {
+        // External script file: relative to scripts/ directory
+        // Accepts: "setup", "setup.js", "scripts/setup.js" — all resolve to scripts/setup.js
+        const scriptName = ref.replace(/^scripts\//, '').replace(/\.js$/, '') + '.js';
+        if (ref && !ref.includes('{{')) {
           try {
             const sd = suiteDir || '';
             if (sd) {
-              const scriptPath = path.join(sd, ref.replace(/^\.\//, ''));
+              const scriptPath = path.join(sd, 'scripts', scriptName);
               if (fs.existsSync(scriptPath)) {
                 return fs.readFileSync(scriptPath, 'utf-8');
               }
@@ -542,8 +545,24 @@ export class SuiteExecutor {
       const thenNodes = resolveChildren(node, ['then', 'nodes', 'body']);
 
       if (type === 'block') {
+        // Resolve external block: load from file if storage === 'external'
+        let blockNodes = thenNodes;
+        if (node.storage === 'external' && node.blockRef && (!blockNodes || blockNodes.length === 0)) {
+          try {
+            const ref = String(node.blockRef).replace(/^\.\//, '');
+            const blockName = ref.includes('/') ? ref.split('/').pop()! : ref;
+            const blockFileName = blockName.endsWith('.block.json') ? blockName : `${blockName}.block.json`;
+            const blockPath = path.join(suiteDir || '', 'blocks', blockFileName.replace(/^blocks\//, ''));
+            if (fs.existsSync(blockPath)) {
+              const blockData = JSON.parse(fs.readFileSync(blockPath, 'utf-8'));
+              blockNodes = blockData.nodes || [];
+            }
+          } catch {
+            // Fall through — execute with empty nodes
+          }
+        }
         const nextBlockLabel = typeof node.name === 'string' ? node.name.trim() : '';
-        await executeNodes(iter, thenNodes, nextBlockLabel || blockLabel);
+        await executeNodes(iter, blockNodes, nextBlockLabel || blockLabel);
         return;
       }
 

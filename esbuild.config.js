@@ -59,7 +59,7 @@ const external = [
 // minified; ws itself remains external and is imported lazily).
 // +2 KB for automatic .http-forge workspace template files
 // +2 KB for script variable-scope snapshots (collection/local writes surfaced to preview + hover)
-const SIZE_BUDGET_BYTES = 792 * 1024;
+const SIZE_BUDGET_BYTES = 795 * 1024;
 
 async function build() {
   const commonConfig = {
