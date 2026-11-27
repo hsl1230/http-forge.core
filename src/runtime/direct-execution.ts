@@ -457,7 +457,12 @@ export async function runSuite(options: RunSuiteOptions): Promise<unknown> {
     // Construct suite directory path for external script resolution
     const configService = (container as any).config;
     const suitesDir = configService?.getSuitesPath?.() ?? '';
-    const suiteDir = suitesDir ? (require('path').join(suitesDir, suite.id)) : undefined;
+    // Support both new format (suite.json in directory) and old format (flat .suite.json)
+    let suiteDir = suitesDir ? (require('path').join(suitesDir, suite.id)) : undefined;
+    // Check if suite is in a subfolder (new format)
+    if (suite.folderPath) {
+        suiteDir = require('path').join(suitesDir, ...suite.folderPath.split('/'), suite.id);
+    }
 
     return new SuiteExecutor(container, suiteDir).execute(suite, {
       environment: options.environment,

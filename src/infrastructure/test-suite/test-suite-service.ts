@@ -133,9 +133,56 @@ export class TestSuiteService implements ITestSuiteService {
             for (const entry of entries) {
                 const fullPath = path.join(dir, entry.name);
                 if (entry.isDirectory()) {
-                    // Recurse into subdirectories
-                    const subPath = relativePath ? `${relativePath}/${entry.name}` : entry.name;
-                    loadFromDir(fullPath, subPath);
+                    // Check if directory contains a suite.json (new format)
+                    const suiteJsonPath = path.join(fullPath, 'suite.json');
+                    if (fs.existsSync(suiteJsonPath)) {
+                        // Load as suite — don't treat as folder
+                        const subPath = relativePath ? `${relativePath}/${entry.name}` : entry.name;
+                        try {
+                            const content = fs.readFileSync(suiteJsonPath, 'utf-8');
+                            const raw = JSON.parse(content) as LegacySuiteFileData;
+                            // Process same as .suite.json
+                            const nodes = Array.isArray(raw.nodes) && raw.nodes.length > 0
+                                ? raw.nodes
+                                : (Array.isArray(raw.requests) ? raw.requests : []).map((req: SuiteRequest): SuiteRequestNode => ({
+                                    type: 'request',
+                                    name: req.description || req.name,
+                                    request: req,
+                                    enabled: req.enabled !== false
+                                }));
+                            const suite: TestSuite = {
+                                id: raw.id,
+                                name: raw.name,
+                                description: raw.description,
+                                scripts: raw.scripts || {},
+                                nodes: nodes,
+                                config: (() => {
+                                    const rawConfig = raw.config ?? {};
+                                    const normalized: SuiteConfig = { ...DEFAULT_SUITE_CONFIG, ...rawConfig };
+                                    normalized.loadPersistedEnvironmentValues = normalized.loadPersistedEnvironmentValues ?? normalized.readFromSharedSession ?? false;
+                                    normalized.usePersistentCookieJar = normalized.usePersistentCookieJar ?? normalized.writeToSharedSession ?? false;
+                                    normalized.readFromSharedSession = normalized.loadPersistedEnvironmentValues;
+                                    normalized.writeToSharedSession = normalized.usePersistentCookieJar;
+                                    return normalized;
+                                })(),
+                                isTemporary: raw.isTemporary,
+                                ai_generated: raw.ai_generated === true,
+                                derived_from: Array.isArray(raw.derived_from) ? raw.derived_from as string[] : undefined,
+                                createdAt: raw.createdAt ?? Date.now(),
+                                updatedAt: raw.updatedAt ?? Date.now(),
+                                folderPath: relativePath || undefined,
+                            };
+                            if (suite.id && suite.name) {
+                                this.suites.set(suite.id, suite);
+                            }
+                        } catch (error) {
+                            console.error(`[TestSuiteService] Failed to load ${suiteJsonPath}:`, error);
+                        }
+                    } else {
+                        // Recurse into subdirectories (folder)
+                        const subPath = relativePath ? `${relativePath}/${entry.name}` : entry.name;
+                        loadFromDir(fullPath, subPath);
+                    }
                 } else if (entry.isFile() && entry.name.endsWith('.suite.json')) {
                     try {
                         const content = fs.readFileSync(fullPath, 'utf-8');
@@ -158,7 +205,7 @@ export class TestSuiteService implements ITestSuiteService {
                             nodes: (raw.nodes || []).map((node: any) => {
                                 // Resolve external blocks: read from file and inline
                                 if (node?.type === 'block' && node.storage === 'external' && node.blockRef) {
-                                    const suiteDir = path.join(dir, raw.id);
+                                    const suiteDir = dir;  // dir IS the suite directory for new format
                                     let blockRef = node.blockRef.replace(/^\.\//, '');
                                     if (!blockRef.includes('/') && !blockRef.endsWith('.block.json')) {
                                         blockRef = `blocks/${blockRef}.block.json`;
@@ -211,7 +258,7 @@ export class TestSuiteService implements ITestSuiteService {
                         const resolveExternalScripts = (nodes: any[]) => {
                             for (const node of nodes || []) {
                                 if (node?.type === 'script' && typeof node.scriptRef === 'string' && (node.scriptRef.includes('/') || node.scriptRef.endsWith('.js'))) {
-                                    const suiteDir = path.join(dir, raw.id);
+                                    const suiteDir = dir;  // dir IS the suite directory for new format
                                     const scriptName = node.scriptRef.replace(/^scripts\//, '').replace(/\.js$/, '') + '.js';
                                     const fullPath = path.join(suiteDir, 'scripts', scriptName);
                                     if (fs.existsSync(fullPath)) {
@@ -360,9 +407,18 @@ export class TestSuiteService implements ITestSuiteService {
             for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
                 const full = path.join(dir, entry.name);
                 if (entry.isDirectory()) {
+                    // Check for suite.json in this directory
+                    const suiteJsonPath = path.join(full, 'suite.json');
+                    if (fs.existsSync(suiteJsonPath)) {
+                        // Verify it's the right suite
+                        try {
+                            const raw = JSON.parse(fs.readFileSync(suiteJsonPath, 'utf-8'));
+                            if (raw.id === suite.id) return suiteJsonPath;
+                        } catch { /* ignore */ }
+                    }
                     const found = findFile(full);
                     if (found) return found;
-                } else if (entry.name === filename) {
+                } else if (entry.name === filename || entry.name === `${suite.id}.suite.json`) {
                     return full;
                 }
             }
@@ -371,7 +427,7 @@ export class TestSuiteService implements ITestSuiteService {
         const found = findFile(this.suitesDir);
         if (found) filePath = found;
 
-        const suiteDirPath = path.join(path.dirname(filePath), suite.id);
+        const suiteDirPath = path.dirname(filePath);  // directory containing suite.json (or .suite.json)
 
         try {
             if (fs.existsSync(filePath)) {
@@ -691,13 +747,12 @@ export class TestSuiteService implements ITestSuiteService {
     private async saveSuiteToDisk(suite: TestSuite): Promise<void> {
         this.ensureSuitesDir();
 
-        const filename = `${suite.id}.suite.json`;
         const folderPath = (suite.folderPath || '').replace(/^\/+|\/+$/g, '');
         const targetDir = folderPath ? path.join(this.suitesDir, ...folderPath.split('/')) : this.suitesDir;
-        if (folderPath) {
-            fs.mkdirSync(targetDir, { recursive: true });
-        }
-        const filePath = path.join(targetDir, filename);
+        // New format: save as suite.json in a directory named after the suite
+        const suiteDir = path.join(targetDir, suite.id);
+        fs.mkdirSync(suiteDir, { recursive: true });
+        const filePath = path.join(suiteDir, 'suite.json');
         const tempPath = `${filePath}.tmp-${process.pid}-${Date.now()}`;
 
         const normalizedSuite = {
@@ -716,7 +771,6 @@ export class TestSuiteService implements ITestSuiteService {
         };
 
         // Write external script files (scriptRef with file path) and external blocks
-        const suiteDir = path.join(targetDir, suite.id);
         const writeExternalScripts = (nodes: any[]) => {
             for (const node of nodes || []) {
                 if (node?.type === 'script' && typeof node.scriptRef === 'string' && node.scriptRef.trim()) {
@@ -841,7 +895,14 @@ export class TestSuiteService implements ITestSuiteService {
         fs.writeFileSync(tempPath, content, 'utf-8');
         fs.renameSync(tempPath, filePath);
 
+        // Remove old flat .suite.json file if it exists (migration to new format)
+        const oldFlatPath = path.join(targetDir, `${suite.id}.suite.json`);
+        if (fs.existsSync(oldFlatPath)) {
+            fs.unlinkSync(oldFlatPath);
+        }
+
         // Remove stale copies from any other location (handles moves between folders)
+        const filename = 'suite.json';
         const walkAndClean = (dir: string) => {
             if (!fs.existsSync(dir)) return;
             for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
@@ -886,6 +947,10 @@ export class TestSuiteService implements ITestSuiteService {
             if (!fs.existsSync(dir)) return;
             for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
                 if (entry.isDirectory()) {
+                    // Skip directories that contain a suite.json (they're suites, not folders)
+                    if (fs.existsSync(path.join(dir, entry.name, 'suite.json'))) {
+                        continue;
+                    }
                     const rel = relative ? `${relative}/${entry.name}` : entry.name;
                     folders.push(rel);
                     walk(path.join(dir, entry.name), rel);
