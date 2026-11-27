@@ -399,7 +399,7 @@ export type {
 // ============================================================
 // Test Suite - Test suite management
 // ============================================================
-export { materializeExternalContent, resolveSuiteDirectory } from './infrastructure/test-suite/external-content';
+export { materializeExternalContent, persistExternalContent, resolveSuiteDirectory } from './infrastructure/test-suite/external-content';
 export { HtmlReportGenerator } from './infrastructure/test-suite/html-report-generator';
 export type {
     ErrorSummary, IStatisticsService, ITestSuiteService,

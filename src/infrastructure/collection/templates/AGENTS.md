@@ -46,7 +46,9 @@ http-forge drift --path <project>
 assets/collections/{slug}/request.json     — request definition
 assets/collections/{slug}/scripts/*.js    — pre-request / post-response scripts
 assets/environments/{env}.json             — environment variables
-assets/suites/{name}.suite.json           — test suite
+assets/suites/{suite-id}/suite.json        — test suite
+assets/suites/{suite-id}/scripts/*.js      — external suite scripts
+assets/suites/{suite-id}/blocks/*.block.json — external suite blocks
 .http-forge/knowledge/**/*.md             — business context for AI
 ```
 
@@ -110,10 +112,31 @@ assets/
     {env}.json               (per-env vars)
     {env}.local.json         (gitignored overrides)
   suites/
-    {name}.suite.json        (test suite with control-flow nodes)
+    {suite-id}/
+      suite.json             (test suite with control-flow nodes)
+      scripts/*.js           (external script nodes, optional)
+      blocks/*.block.json    (external block nodes, optional)
     {folder-name}/
-      {name}.suite.json      (nested test suite)
+      {suite-id}/
+        suite.json           (nested test suite)
 ```
+
+### Test suite storage
+- Suites persist as `{suite-id}/suite.json`; a directory containing `suite.json`
+  is a suite, not a folder.
+- Legacy flat `{suite-id}.suite.json` files still load and migrate to the new
+  directory format on the next save.
+- Script and block nodes may be **inline** or **external**:
+  - Inline: content lives in `suite.json` (`script`, `nodes`).
+  - External: `storage: "external"` + `scriptRef`/`blockRef`; content lives in
+    `scripts/{name}.js` or `blocks/{name}.block.json` beside `suite.json`.
+  - `scriptRef` resolves `setup`, `setup.js`, and `scripts/setup.js` to
+    `scripts/setup.js`.
+- External content is read lazily (expand/edit/execute). Saving a suite or an
+  external block writes nested external scripts/blocks and clears inline content.
+  Existing external script files are the source of truth and are never
+  overwritten by stale inline-library copies.
+- Do not edit generated run history/results; they live under `.http-forge/.cache/`.
 
 ---
 
@@ -161,7 +184,7 @@ Files: `collection.schema.json`, `folder.schema.json`, `request.schema.json`, `e
 - **Edit request:** read `request.json`, modify, write back. Variables: `{{name}}`. Filters: `{{value | upper}}`.
 - **Bulk update:** find-and-replace across `assets/collections/`.
 - **Environment:** edit `assets/environments/{env}.json`.
-- **Suite:** write/edit `assets/suites/{name}.suite.json` (nodes: request, block, if/elseif/else, for, while, switch, script).
+- **Suite:** write/edit `assets/suites/{suite-id}/suite.json` (nodes: request, block, if/elseif/else, for, while, switch, script). External scripts/blocks live in `scripts/` and `blocks/` beside `suite.json`; keep `scriptRef`/`blockRef` and `storage: "external"` in the node.
 
 ---
 
@@ -286,7 +309,7 @@ pm.test('Has id', () => pm.expect(pm.response.json()).to.have.property('id'));
 
 ### Generate a test suite from discovered endpoints
 1. `http-forge generate-suite --path ./backend --collection "My API"`
-2. Review `assets/suites/{name}.suite.json`
+2. Review `assets/suites/{suite-id}/suite.json` (and any `scripts/`/`blocks/`)
 3. Run: `http-forge run suite <name> --json`
 4. Add assertions to request `post-response.js` files
 

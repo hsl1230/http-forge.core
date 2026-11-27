@@ -30,9 +30,10 @@
 | **Environment-resolved runtime config** | Request and proxy config can resolve `{{variable}}` placeholders from environment files and refresh when config/env files change | Per-environment proxy, TLS, and request tuning without restarting the runtime |
 | **Stateful request flows** | Automatic cookie persistence and flow control with `pm.setNextRequest()` / `pm.execution.skipRequest()` | Auth/login chains and dependent request sequences |
 | **Suite flow nodes** | Conditional/loop/script orchestration via `suite.nodes` with reusable `scriptRef` library entries | Advanced API scenarios without creating script-only HTTP requests |
+| **Directory-format suites** | Suites persist as `{suite-id}/suite.json` with optional external `scripts/*.js` and `blocks/*.block.json`; external content is resolved lazily (expand/edit/execute) and legacy flat `*.suite.json` files migrate on save | Git-friendly, reviewable test suites that scale beyond one large JSON file |
 | **AI-readable result artifacts** | Completed runs can produce HTML, JUnit XML, and `run-summary.md` summaries from persisted artifacts | CI publishing and AI-assisted failure analysis |
 | **API discovery from source code** | `ApiDiscoveryService` scans Express, NestJS, Fastify, Lambda, Spring, and FastAPI projects and returns deterministic, provenance-tagged endpoints | Generate requests/test suites from a backend repo with no OpenAPI spec |
-| **Workflow & drift automation** | Discover auth/CRUD chains, generate `.suite.json`/`.flow.js`, and 3-way-diff regenerated content against user edits | Self-maintaining generated test suites |
+| **Workflow & drift automation** | Discover auth/CRUD chains, generate test suites and `.flow.js` artifacts, and 3-way-diff regenerated content against user edits | Self-maintaining generated test suites |
 | **AI API design** | `ApiArchitectService.designFromIntent` designs an OpenAPI spec from plain English and packages it as collection + suite + flow + docs | Greenfield API design and review |
 | **WebSocket & Socket.IO execution** | Raw WebSocket and Socket.IO requests execute headlessly with saved messages, frame transcripts, scripts, and assertions; mixed with HTTP in collections and suites | API testing for real-time endpoints |
 | **Business knowledge for AI** | `.http-forge/knowledge/**/*.md`, per-request `doc.md`, and run-results assembled into bounded AI context blocks | Grounded Copilot/agent workflows |
@@ -49,9 +50,10 @@
 ### Latest platform capabilities
 
 - API discovery from source code for six frameworks with provenance and confidence scoring.
-- Workflow generation for auth and CRUD chains, along with `.suite.json` and runnable `.flow.js` artifacts.
+- Workflow generation for auth and CRUD chains, along with persisted test suites (`{suite-id}/suite.json`) and runnable `.flow.js` artifacts.
 - Drift detection and 3-way merge logic that can regenerate stale suite content while preserving intentional edits.
 - Intent-to-API design via `ApiArchitectService.designFromIntent`, turning plain-English requirements into OpenAPI, collection, suite, flow, and docs outputs.
+- Directory-format test suites with lazy external scripts/blocks (`materializeExternalContent` / `resolveSuiteDirectory`), safe save/delete isolation, and execution-time resolution for single and multi-suite runs.
 - AI context assembly from `.http-forge/knowledge`, request docs, and test results for grounded MCP and Copilot automation.
 
 ## 🧭 Quick Navigation
@@ -198,7 +200,7 @@ Learn more:
 ### Workflow Discovery & Test Generation (Phase 2a)
 
 - `discoverWorkflows` detects cross-request chains from discovered endpoints — **AUTH** (token-producer → protected dependents, `authToken` variable) and **CRUD** (POST `/x` → `/{id}` operations).
-- `generateSuiteFromEndpoints` / `suiteIdFromName` produce a `.suite.json` with one request node per endpoint, each asserting the discovered status code. Generated suites are tagged `ai_generated: true` + `derived_from: <endpointId>`.
+- `generateSuiteFromEndpoints` / `suiteIdFromName` produce a persisted test suite (`{suite-id}/suite.json`) with one request node per endpoint, each asserting the discovered status code. Generated suites are tagged `ai_generated: true` + `derived_from: <endpointId>`.
 - `generateFlowFromEndpoints` emits a runnable `.flow.js` artifact for the `http-forge.flow` runner.
 
 ### Drift Engine (Phase 2b)

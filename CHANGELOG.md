@@ -5,7 +5,7 @@ All notable changes to @http-forge/core will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## 1.1.0 - 2026-11-25
+## 1.1.0 - 2026-11-27
 
 ### Added
 
@@ -20,12 +20,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Default skills**: 5 default AI skills (generate-tests, create-collection, diagnose-failure, ci-setup, create-test-suite) with format/data structure references.
 - **Test suite folder management**: create, rename, delete, move folders; drag-and-drop; multi-select run; composite suites; empty folder persistence.
 - `gatherWorkspaceSkills()` for loading `.http-forge/skills/` into AI prompts.
-- `AGENTS_MD_VERSION` bumped to 7 (template updated with test suite folder docs).
-- **Test Suite storage modes**: suites persist as `{suite-id}/suite.json` (legacy flat `*.suite.json` auto-converts on save) with external `scripts/*.js` and `blocks/*.block.json` content. `materializeExternalContent()` / `resolveSuiteDirectory()` resolve external content at execution time, and `TestSuite.suiteDirOverride`/`externalBlockPath` support in-place external block editing.
+- `AGENTS_MD_VERSION` bumped to 8 (template now documents `{suite-id}/suite.json`, lazy external scripts/blocks, and legacy flat migration).
+- **Test Suite storage modes**: suites persist as `{suite-id}/suite.json` (legacy flat `*.suite.json` auto-converts on save) with external `scripts/*.js` and `blocks/*.block.json` content. `materializeExternalContent()` / `resolveSuiteDirectory()` resolve external content at execution time, and `TestSuiteService.saveBlockFile()` / `persistExternalContent()` persist block edits and nested external scripts in place.
+- `TestSuite.suiteDirOverride` / `externalBlockPath` for editing an external block in a dedicated panel while resolving sibling scripts/blocks from the parent suite directory.
 
 ### Changed
 
 - `saveSuiteToDisk` now supports subfolder paths.
+- `loadSuites()` loads suite metadata only; external block/script content is read on demand (expand/edit/execution), so large suites load faster.
+- Multi-suite runs materialize each suite's external scripts/blocks relative to that suite's directory before building the composite graph.
 - `explain_failure` MCP tool includes `diagnostics` in response.
 - `list_suites` MCP tool includes `folderPath`.
 
@@ -34,6 +37,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Saving one suite no longer deletes other suites' `suite.json` files, and deleting a legacy flat suite no longer removes the whole suites directory.
 - Saving a suite whose external block was never expanded preserves the existing block file instead of truncating it.
 - Inline ↔ external script and block switches now move content in both directions and remove the external file.
+- Saving a suite or an external block persists external scripts nested inside external blocks and clears their inline content.
+- Existing external script files are treated as the source of truth and are never overwritten by a stale inline library copy.
+- Multi-suite runs resolve each suite's external `scripts/` and `blocks/` content at execution time.
 - The suite watcher now reacts to `suite.json`, legacy `*.suite.json`, and `scripts/`/`blocks/` changes.
 
 ## 1.0.9 - 2026-11-25

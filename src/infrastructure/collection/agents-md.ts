@@ -19,7 +19,7 @@ import * as path from 'path';
 import { DEFAULT_CONFIG } from '../config/default-config';
 
 /** Current template version. Bump when `buildAgentsMdContent()` changes. */
-export const AGENTS_MD_VERSION = 7;
+export const AGENTS_MD_VERSION = 8;
 
 export const AGENTS_MD_FILENAME = 'AGENTS.md';
 export const AGENTS_MD_BACKUP_FILENAME = 'AGENTS.md.bak';
