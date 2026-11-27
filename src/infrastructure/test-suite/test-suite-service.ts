@@ -154,7 +154,7 @@ export class TestSuiteService implements ITestSuiteService {
                             id: raw.id,
                             name: raw.name,
                             description: raw.description,
-                            scripts: raw.scripts,
+                            scripts: raw.scripts || {},
                             nodes,
                             config: (() => {
                                 const rawConfig = raw.config ?? {};
@@ -178,6 +178,41 @@ export class TestSuiteService implements ITestSuiteService {
                             updatedAt: raw.updatedAt ?? Date.now(),
                             folderPath: relativePath || undefined,
                         };
+
+                        // Resolve external script references into suite.scripts for in-memory access
+                        if (suite.scripts && typeof suite.scripts === 'object') {
+                            // Already inline — nothing to do
+                        }
+                        // Resolve external script refs on script nodes
+                        const resolveExternalScripts = (nodes: any[]) => {
+                            for (const node of nodes || []) {
+                                if (node?.type === 'script' && typeof node.scriptRef === 'string' && (node.scriptRef.includes('/') || node.scriptRef.endsWith('.js'))) {
+                                    const suiteDir = path.join(this.suitesDir, suite.id);
+                                    const fullPath = path.join(suiteDir, node.scriptRef.replace(/^\.\//, ''));
+                                    if (fs.existsSync(fullPath)) {
+                                        const content = fs.readFileSync(fullPath, 'utf-8');
+                                        // Store as inline key for in-memory access
+                                        if (!suite.scripts) suite.scripts = {};
+                                        suite.scripts[node.scriptRef] = content;
+                                    }
+                                }
+                                if (Array.isArray(node?.nodes)) resolveExternalScripts(node.nodes);
+                                if (Array.isArray(node?.then)) resolveExternalScripts(node.then);
+                                if (Array.isArray(node?.else)) resolveExternalScripts(node.else);
+                                if (Array.isArray(node?.elseif)) {
+                                    for (const b of node.elseif) {
+                                        if (Array.isArray(b?.nodes)) resolveExternalScripts(b.nodes);
+                                    }
+                                }
+                                if (Array.isArray(node?.cases)) {
+                                    for (const c of node.cases) {
+                                        if (Array.isArray(c?.nodes)) resolveExternalScripts(c.nodes);
+                                    }
+                                }
+                                if (Array.isArray(node?.default)) resolveExternalScripts(node.default);
+                            }
+                        };
+                        resolveExternalScripts(suite.nodes);
 
                         if (suite.id && suite.name) {
                             this.suites.set(suite.id, suite);
@@ -654,6 +689,44 @@ export class TestSuiteService implements ITestSuiteService {
             createdAt: suite.createdAt ?? Date.now(),
             updatedAt: suite.updatedAt ?? Date.now()
         };
+
+        // Write external script files (scriptRef with file path)
+        const suiteDir = path.join(this.suitesDir, suite.id);
+        const writeExternalScripts = (nodes: any[]) => {
+            for (const node of nodes || []) {
+                if (node?.type === 'script' && typeof node.scriptRef === 'string' && (node.scriptRef.includes('/') || node.scriptRef.endsWith('.js'))) {
+                    const ref = node.scriptRef.replace(/^\.\//, '');
+                    const scriptPath = path.join(suiteDir, ref);
+                    fs.mkdirSync(path.dirname(scriptPath), { recursive: true });
+                    // Get script content from node.script or suite.scripts
+                    let scriptContent = '';
+                    if (typeof node.script === 'string') {
+                        scriptContent = node.script;
+                        delete node.script;  // Clear inline since it's now external
+                    } else if (suite.scripts && typeof suite.scripts[node.scriptRef] === 'string') {
+                        scriptContent = suite.scripts[node.scriptRef] as string;
+                    }
+                    if (scriptContent) {
+                        fs.writeFileSync(scriptPath, scriptContent, 'utf-8');
+                    }
+                }
+                if (Array.isArray(node?.nodes)) writeExternalScripts(node.nodes);
+                if (Array.isArray(node?.then)) writeExternalScripts(node.then);
+                if (Array.isArray(node?.else)) writeExternalScripts(node.else);
+                if (Array.isArray(node?.elseif)) {
+                    for (const b of node.elseif) {
+                        if (Array.isArray(b?.nodes)) writeExternalScripts(b.nodes);
+                    }
+                }
+                if (Array.isArray(node?.cases)) {
+                    for (const c of node.cases) {
+                        if (Array.isArray(c?.nodes)) writeExternalScripts(c.nodes);
+                    }
+                }
+                if (Array.isArray(node?.default)) writeExternalScripts(node.default);
+            }
+        };
+        writeExternalScripts(suite.nodes);
 
         const content = JSON.stringify(normalizedSuite, null, 2);
         fs.writeFileSync(tempPath, content, 'utf-8');

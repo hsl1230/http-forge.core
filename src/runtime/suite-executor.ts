@@ -18,6 +18,8 @@ import type { ExecutionRequest, ExecutionResult, RequestAuth } from '../types/ty
 import { evaluateExpression } from '../utils/expression-evaluator';
 import { deserializeTypedRecord, deserializeTypedValue, serializeTypedValue } from '../utils/typed-value';
 import { findRequestInCollection } from './collection-traversal';
+import * as fs from 'fs';
+import * as path from 'path';
 import {
   applyOverrides,
   getDirectMaxRequestsLimit,
@@ -53,7 +55,10 @@ type FlatRequestRef = {
  * `direct-execution.ts` stay thin. One instance is scoped to one run.
  */
 export class SuiteExecutor {
-  constructor(private readonly container: ServiceContainer) {}
+  constructor(
+    private readonly container: ServiceContainer,
+    private readonly suiteDir?: string,
+  ) {}
 
   async execute(
     suite: any,
@@ -61,6 +66,7 @@ export class SuiteExecutor {
     source: 'suite' | 'collection'
   ): Promise<unknown> {
     const container = this.container;
+    const suiteDir = this.suiteDir;
     const env = (args.environment as string | undefined) ?? container.environmentConfig.getSelectedEnvironment();
     const iterations: number = (args.iterations as number | undefined) ?? suite.config?.iterations ?? 1;
     const stopOnError: boolean = (args.stopOnError as boolean | undefined) ?? suite.config?.stopOnError ?? false;
@@ -103,9 +109,25 @@ export class SuiteExecutor {
       }
 
       if (typeof node.scriptRef === 'string' && node.scriptRef.trim()) {
+        const ref = node.scriptRef.trim();
+        // Mode 1: File path (contains / or ends with .js)
+        if (ref.includes('/') || ref.endsWith('.js')) {
+          try {
+            const sd = suiteDir || '';
+            if (sd) {
+              const scriptPath = path.join(sd, ref.replace(/^\.\//, ''));
+              if (fs.existsSync(scriptPath)) {
+                return fs.readFileSync(scriptPath, 'utf-8');
+              }
+            }
+          } catch {
+            // Fall through to inline lookup
+          }
+        }
+        // Mode 2: Inline key lookup (existing behavior)
         const library = suite?.scripts;
         if (library && typeof library === 'object') {
-          return (library as Record<string, unknown>)[node.scriptRef];
+          return (library as Record<string, unknown>)[ref];
         }
       }
 

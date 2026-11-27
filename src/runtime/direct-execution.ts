@@ -454,7 +454,12 @@ export async function runSuite(options: RunSuiteOptions): Promise<unknown> {
       throw new Error(`Test suite "${options.suiteId}" not found`);
     }
 
-    return new SuiteExecutor(container).execute(suite, {
+    // Construct suite directory path for external script resolution
+    const configService = (container as any).config;
+    const suitesDir = configService?.getSuitesPath?.() ?? '';
+    const suiteDir = suitesDir ? (require('path').join(suitesDir, suite.id)) : undefined;
+
+    return new SuiteExecutor(container, suiteDir).execute(suite, {
       environment: options.environment,
       iterations: options.iterations,
       stopOnError: options.stopOnError,

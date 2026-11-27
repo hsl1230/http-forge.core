@@ -51,7 +51,12 @@ export interface SuiteRequestNode extends SuiteFlowNodeBase {
 
 export interface SuiteBlockNode extends SuiteFlowNodeBase {
     type: 'block';
+    name: string;
     nodes: SuiteFlowNode[];
+    /** Storage mode. Default: 'inline'. */
+    storage?: 'inline' | 'external';
+    /** External file reference (only when storage === 'external'). Relative to suite directory. */
+    blockRef?: string;
 }
 
 export interface SuiteElseIfBranch {
